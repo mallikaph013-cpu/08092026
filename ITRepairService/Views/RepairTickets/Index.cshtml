@@ -17,28 +17,42 @@
 
     bool IsTicketOwner(ITRepairService.Models.RepairTicket ticket)
     {
-        return !string.IsNullOrWhiteSpace(currentUserId) && ticket.RequesterUserId == currentUserId
-            || (string.IsNullOrWhiteSpace(ticket.RequesterUserId) && (
-                (!string.IsNullOrWhiteSpace(currentUserFullName) && ticket.RequesterName == currentUserFullName)
-                || (!string.IsNullOrWhiteSpace(currentUserUserName) && ticket.RequesterName == currentUserUserName)
-                || (!string.IsNullOrWhiteSpace(currentUserEmail) && ticket.RequesterName == currentUserEmail)
-                || (!string.IsNullOrWhiteSpace(currentUserFullName) && ticket.CreatedByName == currentUserFullName)
-                || (!string.IsNullOrWhiteSpace(currentUserUserName) && ticket.CreatedByName == currentUserUserName)
-                || (!string.IsNullOrWhiteSpace(currentUserEmail) && ticket.CreatedByName == currentUserEmail)
+        if (!string.IsNullOrWhiteSpace(currentUserId) && ticket.RequesterUserId == currentUserId)
+        {
+            return true;
+        }
+
+        if (!string.IsNullOrWhiteSpace(ticket.RequesterUserId))
+        {
+            return false;
+        }
+
+        var requesterName = ticket.RequesterName?.Trim();
+        var createdByName = ticket.CreatedByName?.Trim();
+
+        var candidates = new[]
+        {
+            currentUserFullName,
+            currentUserUserName,
+            currentUserEmail
+        };
+
+        return candidates.Any(candidate =>
+            !string.IsNullOrWhiteSpace(candidate)
+            && (
+                (!string.IsNullOrWhiteSpace(requesterName)
+                    && string.Equals(requesterName, candidate.Trim(), StringComparison.OrdinalIgnoreCase))
+                || (!string.IsNullOrWhiteSpace(createdByName)
+                    && string.Equals(createdByName, candidate.Trim(), StringComparison.OrdinalIgnoreCase))
             ));
     }
 
     string GetStatusDisplay(ITRepairService.Models.RepairTicket ticket)
     {
         var status = ticket.Status;
-        var isOwner = IsTicketOwner(ticket);
-        var shouldHideStatus = !canSeeInProgress && status == ITRepairService.Models.TicketStatus.InProgress && !isOwner;
-        
-        return shouldHideStatus
-            ? "-"
-            : status == ITRepairService.Models.TicketStatus.Approved
-                ? $"Approved ({GetApproverDisplay(ticket)})"
-                : status.ToString();
+        return status == ITRepairService.Models.TicketStatus.Approved
+            ? "Approved (ผู้อนุมัติได้อนุมัติรายการ)"
+            : status.GetDisplayName();
     }
 
     string NextDir(string field)
@@ -111,7 +125,7 @@
                         {
                             @* if (!canSeeInProgress && status == ITRepairService.Models.TicketStatus.InProgress) { continue; } *@
                             var isSelected = currentStatus == status.ToString();
-                            <option value="@status" selected="@isSelected">@status</option>
+                            <option value="@status" selected="@isSelected">@status.GetDisplayName()</option>
                         }
                     </select>
                 </div>
@@ -165,19 +179,20 @@
                             ))
                         );
 
-                        var canEditTicket = User.IsInRole(ITRepairService.Models.AppRoles.ITSupport)
-                            || User.IsInRole(ITRepairService.Models.AppRoles.Admin)
-                            || User.IsInRole(ITRepairService.Models.AppRoles.Approve)
-                            || (item.Status == ITRepairService.Models.TicketStatus.Open && (item.RequesterUserId == currentUserId || isRequesterByName))
-                            || (item.Status == ITRepairService.Models.TicketStatus.Rejected && (item.RequesterUserId == currentUserId || isRequesterByName));
+                        var isItSupportOrAdmin = User.IsInRole(ITRepairService.Models.AppRoles.ITSupport)
+                            || User.IsInRole(ITRepairService.Models.AppRoles.Admin);
+                        var canEditTicket = item.Status != ITRepairService.Models.TicketStatus.Closed
+                            && (isItSupportOrAdmin || string.IsNullOrWhiteSpace(item.AssignedItUserId))
+                            && (isItSupportOrAdmin
+                                || User.IsInRole(ITRepairService.Models.AppRoles.Approve)
+                                || (item.Status == ITRepairService.Models.TicketStatus.Open && (item.RequesterUserId == currentUserId || isRequesterByName))
+                                || (item.Status == ITRepairService.Models.TicketStatus.Rejected && (item.RequesterUserId == currentUserId || isRequesterByName)));
                         if (!canSeeInProgress && item.Status == ITRepairService.Models.TicketStatus.InProgress) canEditTicket = false;
 
                         var canCloseTicket = item.Status == ITRepairService.Models.TicketStatus.Complete
                             && (User.IsInRole(ITRepairService.Models.AppRoles.Admin) || item.RequesterUserId == currentUserId || isRequesterByName);
 
                         var badgeClass = GetStatusBadgeClass(item.Status);
-                        var isOwner = isRequesterByName || item.RequesterUserId == currentUserId;
-                        if (!canSeeInProgress && item.Status == ITRepairService.Models.TicketStatus.InProgress && !isOwner) badgeClass = "bg-secondary";
 
                         <div class="mobile-ticket-card p-3 shadow-sm">
                             <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
@@ -252,30 +267,30 @@
                     <table class="table table-hover mb-0 w-100">
                         <thead>
                             <tr>
-                                <th class="ps-4">Document No.</th>
-                                <th class="ps-4">
+                                <th class="ps-4" style="width: 120px;">Document No.</th>
+                                <th class="ps-4" style="width: 180px; min-width: 150px;">
                                     <a asp-action="Index"
                                        asp-route-status="@currentStatus"
                                        asp-route-sort="requester"
                                        asp-route-dir="@NextDir("requester")"
                                        class="sort-link">
-                                        Requester <i class="fas @SortIcon("requester")"></i>
+                                         Requester <i class="fas @SortIcon("requester")"></i>
                                     </a>
                                 </th>
-                                <th>Department</th>
-                                <th>Type</th>
-                                <th>Approver</th>
-                                <th>Status</th>
-                                <th>
+                                <th style="width: 140px; min-width: 120px;">Department</th>
+                                <th style="width: 130px; min-width: 110px;">Type</th>
+                                <th style="width: 160px; min-width: 140px;">Approver</th>
+                                <th style="width: 120px; min-width: 100px;">Status</th>
+                                <th style="width: 130px; min-width: 110px;">
                                     <a asp-action="Index"
                                        asp-route-status="@currentStatus"
                                        asp-route-sort="created"
                                        asp-route-dir="@NextDir("created")"
                                        class="sort-link">
-                                        Created <i class="fas @SortIcon("created")"></i>
+                                         Created <i class="fas @SortIcon("created")"></i>
                                     </a>
                                 </th>
-                                <th class="text-end pe-4" style="width: 260px;">Actions</th>
+                                <th class="text-end pe-4" style="width: 240px;">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -296,49 +311,50 @@
                                     ))
                                 );
 
-                                var canEditTicket = User.IsInRole(ITRepairService.Models.AppRoles.ITSupport)
-                                    || User.IsInRole(ITRepairService.Models.AppRoles.Admin)
-                                    || User.IsInRole(ITRepairService.Models.AppRoles.Approve)
-                                    || (item.Status == ITRepairService.Models.TicketStatus.Open && (item.RequesterUserId == currentUserId || isRequesterByName))
-                                    || (item.Status == ITRepairService.Models.TicketStatus.Rejected && (item.RequesterUserId == currentUserId || isRequesterByName));
+                                var isItSupportOrAdmin = User.IsInRole(ITRepairService.Models.AppRoles.ITSupport)
+                                    || User.IsInRole(ITRepairService.Models.AppRoles.Admin);
+                                var canEditTicket = item.Status != ITRepairService.Models.TicketStatus.Closed
+                                    && (isItSupportOrAdmin || string.IsNullOrWhiteSpace(item.AssignedItUserId))
+                                    && (isItSupportOrAdmin
+                                        || User.IsInRole(ITRepairService.Models.AppRoles.Approve)
+                                        || (item.Status == ITRepairService.Models.TicketStatus.Open && (item.RequesterUserId == currentUserId || isRequesterByName))
+                                        || (item.Status == ITRepairService.Models.TicketStatus.Rejected && (item.RequesterUserId == currentUserId || isRequesterByName)));
                                 if (!canSeeInProgress && item.Status == ITRepairService.Models.TicketStatus.InProgress) canEditTicket = false;
 
                                 var canCloseTicket = item.Status == ITRepairService.Models.TicketStatus.Complete
                                     && (User.IsInRole(ITRepairService.Models.AppRoles.Admin) || item.RequesterUserId == currentUserId || isRequesterByName);
 
                                 var badgeClass = GetStatusBadgeClass(item.Status);
-                                var isOwner = isRequesterByName || item.RequesterUserId == currentUserId;
-                                if (!canSeeInProgress && item.Status == ITRepairService.Models.TicketStatus.InProgress && !isOwner) badgeClass = "bg-secondary";
 
                                 <tr>
-                                    <td class="ps-4 text-primary fw-semibold">
+                                    <td class="ps-4 text-primary fw-semibold text-nowrap">
                                         <i class="fas fa-file-alt me-1"></i>@(string.IsNullOrWhiteSpace(item.DocumentNo) ? "-" : item.DocumentNo)
                                     </td>
-                                    <td class="fw-semibold">
+                                    <td class="fw-semibold text-nowrap">
                                         <i class="fas fa-user text-secondary me-1"></i>@item.RequesterName
                                     </td>
-                                    <td>
+                                    <td class="text-nowrap">
                                         <span class="badge bg-light text-dark">
                                             <i class="fas fa-building me-1"></i>@item.Department
                                         </span>
                                     </td>
-                                    <td>
+                                    <td class="text-nowrap">
                                         <span class="badge bg-light text-dark">
                                             <i class="fas fa-tools me-1"></i>@item.RepairType
                                         </span>
                                     </td>
-                                    <td>
+                                    <td class="text-nowrap">
                                         <span class="fw-semibold small">
                                             <i class="fas fa-user-check text-secondary me-1"></i>@GetApproverDisplay(item)
                                         </span>
                                     </td>
-                                    <td>
+                                    <td class="text-nowrap">
                                         <span class="badge badge-status @badgeClass">@GetStatusDisplay(item)</span>
                                     </td>
                                     <td class="text-nowrap">
                                         <i class="fas fa-clock text-secondary me-1"></i>@item.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")
                                     </td>
-                                    <td class="text-end pe-6">
+                                    <td class="text-end pe-4">
                                         <div class="btn-group-action">
                                             @if (canEditTicket)
                                             {
@@ -468,3 +484,12 @@
         });
     })();
 </script>
+
+<style>
+    .btn-group-action .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 32px;
+    }
+</style>

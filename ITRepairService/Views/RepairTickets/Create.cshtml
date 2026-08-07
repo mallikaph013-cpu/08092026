@@ -61,7 +61,7 @@
                             <label asp-for="Department" class="form-label">
                                 <i class="fas fa-building me-1"></i>ฝ่าย
                             </label>
-                            <input asp-for="Department" class="form-control" id="requesterDepartmentInput" placeholder="กรุณาระบุฝ่าย..." />
+                            <input asp-for="Department" class="form-control" id="requesterDepartmentInput" placeholder="กรุณาระบุฝ่าย..." readonly />
                             <span asp-validation-for="Department" class="text-danger small"></span>
                         </div>
                     </div>
@@ -104,49 +104,63 @@
                         <span asp-validation-for="IssueDescription" class="text-danger small"></span>
                     </div>
 
-                    <hr class="my-4" />
-
                     <div class="mb-3">
                         <label class="form-label">
-                            <i class="fas fa-share me-1"></i>ฝ่ายสำหรับ step ถัดไป
+                            <i class="fas fa-file-pdf me-1"></i>ไฟล์แนบ PDF (ถ้ามี)
                         </label>
-                        <select asp-for="ApproverDepartment" class="form-select" asp-items="approverDepartments" id="approverDepartmentSelect">
-                            <option value="">— Select approver department —</option>
-                        </select>
+                        <input type="file" name="pdfAttachment" class="form-control" accept=".pdf" />
                         <div class="form-text">
-                            <i class="fas fa-info-circle me-1"></i>ใช้ระบุว่าขั้นตอนถัดไปของงานจะส่งไปที่ฝ่ายใด
+                            <i class="fas fa-info-circle me-1"></i>รองรับเฉพาะไฟล์ PDF เท่านั้น ขนาดไฟล์ไม่เกิน 10MB
                         </div>
-                        <span asp-validation-for="ApproverDepartment" class="text-danger small"></span>
+                        <span class="text-danger small" data-valmsg-for="pdfAttachment" data-valmsg-replace="true"></span>
                     </div>
 
-                    <div class="mb-3">
-                        <label class="form-label">
-                            <i class="fas fa-user-check me-1"></i>ผู้รับ step ถัดไป
-                        </label>
-                        <select asp-for="ApproverUserId" class="form-select" id="approverUserSelect">
-                            <option value="">— Select approver —</option>
-                            @foreach (var approver in approverUsers)
-                            {
-                                var displayName = !string.IsNullOrWhiteSpace(approver.FullName)
-                                    ? approver.FullName
-                                    : (approver.UserName ?? approver.Email ?? "Unknown User");
-                                var userNameForDisplay = !string.IsNullOrWhiteSpace(approver.UserName)
-                                    ? approver.UserName
-                                    : approver.Email;
-                                var departmentValue = approver.Department?.Trim() ?? string.Empty;
+                    <hr class="my-4" />
 
-                                if (selectedApproverUserId == approver.Id)
+                    @* Approver fields - visible only for Drive Access Permission *@
+                    <div id="approverFieldsContainer" style="display: none;">
+                        <div class="mb-3">
+                            <label class="form-label">
+                                <i class="fas fa-share me-1"></i>ฝ่ายอนุมัติลำดับถัดไป <span class="text-danger">*</span>
+                            </label>
+                            <select asp-for="ApproverDepartment" class="form-select" asp-items="approverDepartments" id="approverDepartmentSelect" required>
+                                <option value="">— Select approver department —</option>
+                            </select>
+                            <div class="form-text">
+                                <i class="fas fa-info-circle me-1"></i>ใช้ระบุว่าขั้นตอนถัดไปของงานจะส่งไปที่ฝ่ายใด
+                            </div>
+                            <span asp-validation-for="ApproverDepartment" class="text-danger small"></span>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">
+                                <i class="fas fa-user-check me-1"></i>ผู้อนุมัติลำดับถัดไป <span class="text-danger">*</span>
+                            </label>
+                            <select asp-for="ApproverUserId" class="form-select" id="approverUserSelect" required>
+                                <option value="">— Select approver —</option>
+                                @foreach (var approver in approverUsers)
                                 {
-                                    <option value="@approver.Id" data-department="@departmentValue" selected>@displayName (@userNameForDisplay)</option>
+                                    var displayName = !string.IsNullOrWhiteSpace(approver.FullName)
+                                        ? approver.FullName
+                                        : (approver.UserName ?? approver.Email ?? "Unknown User");
+                                    var userNameForDisplay = !string.IsNullOrWhiteSpace(approver.UserName)
+                                        ? approver.UserName
+                                        : approver.Email;
+                                    var departmentValue = approver.Department?.Trim() ?? string.Empty;
+
+                                    if (selectedApproverUserId == approver.Id)
+                                    {
+                                        <option value="@approver.Id" data-department="@departmentValue" selected>@displayName (@userNameForDisplay)</option>
+                                    }
+                                    else
+                                    {
+                                        <option value="@approver.Id" data-department="@departmentValue">@displayName (@userNameForDisplay)</option>
+                                    }
                                 }
-                                else
-                                {
-                                    <option value="@approver.Id" data-department="@departmentValue">@displayName (@userNameForDisplay)</option>
-                                }
-                            }
-                        </select>
-                        <div class="form-text">เลือกคนที่ระบบจะส่งงานต่อไปให้ ไม่ได้ผูกกับสถานะของรายการ</div>
-                        <span asp-validation-for="ApproverUserId" class="text-danger small"></span>
+                            </select>
+                            <div class="form-text">เลือกคนที่ระบบจะส่งงานต่อไปให้ ไม่ได้ผูกกับสถานะของรายการ</div>
+                            <span asp-validation-for="ApproverUserId" class="text-danger small"></span>
+                        </div>
                     </div>
 
                     <input asp-for="Priority" type="hidden" value="@ITRepairService.Models.TicketPriority.Medium" />
@@ -191,19 +205,6 @@
         </div>
     </div>
 </div>
-
-<script>
-    (function() {
-        const saveBtn = document.getElementById('saveBtn');
-        const form = document.getElementById('createTicketForm');
-        if (saveBtn && form) {
-            form.addEventListener('submit', function() {
-                saveBtn.disabled = true;
-                saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status"></span>Creating...';
-            });
-        }
-    })();
-</script>
 
 @section Scripts {
     @{await Html.RenderPartialAsync("_ValidationScriptsPartial");}
@@ -303,10 +304,20 @@
                     driveAccessDepartmentSelect.value = '';
                 }
 
+                // Show/hide approver fields based on repair type
+                const approverFieldsContainer = document.getElementById('approverFieldsContainer');
+                if (approverFieldsContainer) {
+                    approverFieldsContainer.style.display = isDriveAccess ? '' : 'none';
+                }
+
                 if (isDriveAccess) {
-                    syncApproverDepartmentFromDriveAccess();
-                } else {
+                    // Step แรกในการสร้าง: ฝ่ายอนุมัติลำดับถัดไปต้องเป็นฝ่ายเดียวกันกับ User ผู้สร้างรายการ
                     syncApproverDepartmentFromRequester();
+                } else {
+                    // Reset department select to default placeholder
+                    if (departmentSelect) {
+                        departmentSelect.value = '';
+                    }
                 }
             }
 
@@ -322,7 +333,7 @@
                 }
 
                 departmentSelect.value = requesterDepartment;
-                renderApproverOptions(true);
+                renderApproverOptions(false);
             }
 
             function syncApproverDepartmentFromDriveAccess() {
@@ -337,7 +348,7 @@
                 }
 
                 departmentSelect.value = selectedDriveAccessDepartment;
-                renderApproverOptions(true);
+                renderApproverOptions(false);
             }
 
             const allApproverOptions = Array.from(approverSelect.querySelectorAll('option'))
@@ -385,7 +396,7 @@
                 });
 
                 if (!foundSelected) {
-                    if (optionsToRender.length === 1 || (autoSelectFirst && optionsToRender.length > 0)) {
+                    if (autoSelectFirst && optionsToRender.length > 0 && optionsToRender[0].value !== '') {
                         approverSelect.value = optionsToRender[0].value;
                     } else {
                         approverSelect.value = '';
@@ -420,17 +431,18 @@
             approverSelect.addEventListener('change', updateStatusApproverPreview);
             if (requesterDepartmentInput) {
                 requesterDepartmentInput.addEventListener('change', function () {
-                    if (!isDriveAccessRepairType()) {
-                        syncApproverDepartmentFromRequester();
-                    }
+                    // Step แรกในการสร้าง: ฝ่ายอนุมัติลำดับถัดไปต้องเป็นฝ่ายเดียวกันกับ User ผู้สร้างรายการ
+                    // สำหรับทุกประเภทการแจ้งซ่อม รวมถึงสิทธิ์การใช้งานเข้า Drive
+                    syncApproverDepartmentFromRequester();
                 });
             }
-            if (driveAccessDepartmentSelect) {
-                driveAccessDepartmentSelect.addEventListener('change', syncApproverDepartmentFromDriveAccess);
-            }
+            // Do not auto-sync approver department when Drive access department changes
+            // if (driveAccessDepartmentSelect) {
+            //     driveAccessDepartmentSelect.addEventListener('change', syncApproverDepartmentFromDriveAccess);
+            // }
 
             if (createTicketForm) {
-                createTicketForm.addEventListener('submit', function () {
+                createTicketForm.addEventListener('submit', function (e) {
                     if (isDriveAccessRepairType() && issueDescriptionInput && driveAccessDepartmentSelect) {
                         const driveDepartment = driveAccessDepartmentSelect.value.trim();
                         if (driveDepartment) {
@@ -444,13 +456,6 @@
                             }
                         }
                     }
-
-                    if (approverSelect && !approverSelect.value) {
-                        const firstApproverOption = Array.from(approverSelect.options).find(option => option.value);
-                        if (firstApproverOption) {
-                            approverSelect.value = firstApproverOption.value;
-                        }
-                    }
                 }, true);
             }
 
@@ -458,6 +463,12 @@
             renderDriveAccessDepartment();
             renderApproverOptions();
             updateStatusApproverPreview();
+            
+            // For non-Drive Access types, ensure department select defaults to placeholder
+            // For Drive Access, the department is already auto-set to the requester's department
+            if (departmentSelect && !isDriveAccessRepairType()) {
+                departmentSelect.value = '';
+            }
         })();
     </script>
 }

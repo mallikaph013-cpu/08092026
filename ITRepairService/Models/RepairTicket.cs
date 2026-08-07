@@ -33,7 +33,7 @@ public class RepairTicket
     [Display(Name = "ประเภทการแจ้งซ่อม")]
     public RepairType RepairType { get; set; } = RepairType.Hardware;
 
-    [NotMapped]
+    [StringLength(100)]
     [Display(Name = "ต้องการขอสิทธิ์ Drive ของฝ่าย")]
     public string? DriveAccessDepartment { get; set; }
 
@@ -65,11 +65,11 @@ public class RepairTicket
 
     [StringLength(450)]
     [Display(Name = "ผู้อนุมัติ (SM/DM ของฝ่ายผู้แจ้ง)")]
-    public string ApproverUserId { get; set; } = string.Empty;
+    public string? ApproverUserId { get; set; }
 
     [StringLength(150)]
     [Display(Name = "ชื่อผู้อนุมัติ")]
-    public string ApproverName { get; set; } = string.Empty;
+    public string? ApproverName { get; set; }
 
     [StringLength(450)]
     [Display(Name = "ผู้อนุมัติระดับ 2 (SM/DM ของ DX)")]
@@ -83,12 +83,24 @@ public class RepairTicket
     [Display(Name = "ผู้อนุมัติระดับ 3 (SM/DM ของฝ่ายที่ขอสิทธิ์ Drive)")]
     public string? ThirdApproverUserId { get; set; }
 
-    [StringLength(150)]
-    [Display(Name = "ชื่อผู้อนุมัติระดับ 3")]
-    public string? ThirdApproverName { get; set; }
+     [StringLength(150)]
+     [Display(Name = "ชื่อผู้อนุมัติระดับ 3")]
+     public string? ThirdApproverName { get; set; }
 
-    [Display(Name = "ระดับการอนุมัติ")]
-    public int ApprovalLevel { get; set; } = 1;
+     [StringLength(450)]
+     [Display(Name = "ผู้อนุมัติลำดับถัดไป")]
+     public string? NextApproverUserId { get; set; }
+
+     [StringLength(150)]
+     [Display(Name = "ชื่อผู้อนุมัติลำดับถัดไป")]
+     public string? NextApproverName { get; set; }
+
+     [StringLength(100)]
+     [Display(Name = "ฝ่ายที่อนุมัติลำดับถัดไป")]
+     public string? NextApproverDepartment { get; set; }
+
+     [Display(Name = "ระดับการอนุมัติ")]
+     public int ApprovalLevel { get; set; } = 1;
 
     [StringLength(450)]
     [Display(Name = "ผู้รับมอบหมายงาน (IT)")]
@@ -105,6 +117,17 @@ public class RepairTicket
     [StringLength(20)]
     [Display(Name = "เลขเอกสาร")]
     public string? DocumentNo { get; set; }
+
+    [Display(Name = "ไฟล์แนบ PDF")]
+    [StringLength(500)]
+    public string? PdfAttachmentPath { get; set; }
+
+    [Display(Name = "ชื่อไฟล์ PDF")]
+    [StringLength(255)]
+    public string? PdfAttachmentFileName { get; set; }
+
+    [Display(Name = "ขนาดไฟล์ (bytes)")]
+    public long? PdfAttachmentFileSize { get; set; }
 
     public ICollection<RepairTicketStatusHistory> StatusHistories { get; set; } = new List<RepairTicketStatusHistory>();
 }

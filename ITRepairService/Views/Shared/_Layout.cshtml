@@ -34,6 +34,7 @@
                     var currentUserUserName = currentUser?.UserName?.Trim();
                     var currentUserEmail = currentUser?.Email?.Trim();
                     var nextStepCount = 0;
+                    var myTaskCount = 0;
 
                     if (currentUser is not null)
                     {
@@ -107,6 +108,15 @@
                         }
 
                         nextStepCount = openNextStepCount + rejectedUnreadCount;
+
+                        // Count assigned tasks for My Tasks notification
+                        myTaskCount = await DbContext.RepairTickets
+                            .AsNoTracking()
+                            .CountAsync(ticket =>
+                                (!string.IsNullOrWhiteSpace(currentUserId) && ticket.AssignedItUserId == currentUserId)
+                                || (!string.IsNullOrWhiteSpace(currentUserFullName) && ticket.AssignedItName == currentUserFullName)
+                                || (!string.IsNullOrWhiteSpace(currentUserUserName) && ticket.AssignedItName == currentUserUserName)
+                                || (!string.IsNullOrWhiteSpace(currentUserEmail) && ticket.AssignedItName == currentUserEmail));
                     }
                 }
                 <a class="navbar-brand fw-bold" asp-area="" asp-controller="Home" asp-action="Index">
@@ -132,6 +142,18 @@
                                 }
                             </a>
                         </li>
+                        @if (canSeeItAdminMenus)
+                        {
+                        <li class="nav-item">
+                            <a class="nav-link text-white" asp-area="" asp-controller="RepairTickets" asp-action="MyTasks">
+                                <i class="fas fa-tasks me-1"></i>My Tasks
+                                @if (myTaskCount > 0)
+                                {
+                                    <span class="badge rounded-pill bg-danger ms-2">@myTaskCount</span>
+                                }
+                            </a>
+                        </li>
+                        }
                         @if (canSeeItAdminMenus)
                         {
                             <li class="nav-item">
