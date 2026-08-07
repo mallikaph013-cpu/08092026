@@ -646,7 +646,7 @@
                         <label class="form-label">
                             <i class="fas fa-share me-1"></i>ฝ่ายที่อนุมัติลำดับถัดไป
                         </label>
-                        @if (requesterEditMode)
+                        @if (requesterEditMode || ViewData["NextApproverFilterMode"]?.ToString() == "DX")
                         {
                             <input asp-for="NextApproverDepartment" class="form-control" readonly />
                         }
@@ -673,8 +673,7 @@
                             }
                             @if (isDxFilterMode)
                             {
-                                <select asp-for="NextApproverUserId"
-                                        class="form-select"
+                                <select class="form-select"
                                         id="approverUserSelect"
                                         disabled
                                         data-current-user-id="@currentUserId"
@@ -706,6 +705,7 @@
                                         }
                                     }
                                 </select>
+                                <input type="hidden" name="ThirdApproverUserId" id="hiddenThirdApproverUserId" value="@ViewData["SelectedThirdApproverUserId"]" />
                             }
                             else
                             {
@@ -761,11 +761,18 @@
                         var directDxApprovers = ViewData["DirectDxApproverUsers"] as List<ITRepairService.Models.ApplicationUser>
                             ?? new List<ITRepairService.Models.ApplicationUser>();
                         
+                        // Allow editing if:
+                        // 1. User is IT Support or Admin
+                        // 2. User is the current SecondApprover (the one who is at the approval step)
+                        var canEditThirdApprover = User.IsInRole(ITRepairService.Models.AppRoles.ITSupport) 
+                            || User.IsInRole(ITRepairService.Models.AppRoles.Admin)
+                            || (!string.IsNullOrEmpty(Model.SecondApproverUserId) && Model.SecondApproverUserId == ViewData["CurrentUserId"]?.ToString());
+                        
                         <div class="mb-3">
                             <label class="form-label">
                                 <i class="fas fa-user-tie me-1"></i>เลือกผู้อนุมัติ DX (ขั้นตอนสุดท้าย)
                             </label>
-                            <select class="form-select" id="directNextApproverSelect" name="NextApproverUserId">
+                            <select class="form-select" id="directNextApproverSelect" @(canEditThirdApprover ? "" : "disabled")>
                                 <option value="">— เลือกผู้อนุมัติ DX —</option>
                                 @foreach (var approver in directDxApprovers)
                                 {
@@ -788,7 +795,15 @@
                                 }
                             </select>
                             <div class="form-text">
-                                <i class="fas fa-info-circle me-1"></i>เลือกผู้อนุมัติจากฝ่าย DX/IT โดยตรง
+                                <i class="fas fa-info-circle me-1"></i>
+                                @if (canEditThirdApprover)
+                                {
+                                    <span>เลือกผู้อนุมัติ DX สำหรับขั้นตอนสุดท้าย</span>
+                                }
+                                else
+                                {
+                                    <span>เฉพาะผู้ใช้ที่มีสิทธิ์ IT Support หรือผู้ที่อยู่ในขั้นตอนการอนุมัติเท่านั้นที่สามารถแก้ไขได้</span>
+                                }
                             </div>
                         </div>
                     }
@@ -796,10 +811,6 @@
                     @* Hidden fields for SecondApprover *@
                     <input type="hidden" asp-for="SecondApproverUserId" />
                     <input type="hidden" asp-for="SecondApproverName" />
-
-                    @* Hidden fields for ThirdApprover *@
-                    <input type="hidden" asp-for="ThirdApproverUserId" />
-                    <input type="hidden" asp-for="ThirdApproverName" />
 
                     @* Display Next Approver Information *@
                     @if (!string.IsNullOrWhiteSpace(Model.NextApproverName))
@@ -1159,6 +1170,7 @@
             const alertPopup = document.getElementById('alertPopup');
             const alertPopupMessage = document.getElementById('alertPopupMessage');
             const alertPopupClose = document.getElementById('alertPopupClose');
+            const directNextApproverSelectEl = document.getElementById('directNextApproverSelect');
 
             // Validation summary auto-show
             const validationSummary = document.getElementById('validationSummary');
@@ -1267,6 +1279,12 @@
                 }
                 updateStatusBadge(status);
 
+                // Also update the visible status dropdown if it exists
+                const statusDropdown = document.getElementById('statusDropdown');
+                if (statusDropdown && status === 'Approved') {
+                    statusDropdown.value = 'Approved';
+                }
+
                 if (isReject) {
                     if (remarkContainer) {
                         remarkContainer.style.display = 'block';
@@ -1311,13 +1329,13 @@
                     const isDriveAccess = repairTypeSelect && repairTypeSelect.value === '@((int)ITRepairService.Models.RepairType.DriveAccessPermission)';
                     
                     // Get the second approver user ID (ThirdApproverUserId)
-                    const thirdApproverSelect = document.querySelector('select[name="ThirdApproverUserId"]');
+                    const thirdApproverSelect = document.getElementById('directNextApproverSelect');
                     const hasSecondApprover = thirdApproverSelect && thirdApproverSelect.value;
                     
                     // Check if NextApproverUserId has a value before allowing approval
                     // In DX mode, check directNextApproverSelect; otherwise check approverSelect
-                    const isDxMode = directNextApproverSelect !== null;
-                    const nextApproverSelect = isDxMode ? directNextApproverSelect : approverSelect;
+                    const isDxMode = directNextApproverSelectEl !== null;
+                    const nextApproverSelect = isDxMode ? directNextApproverSelectEl : approverSelect;
                     
                     if (!nextApproverSelect || !nextApproverSelect.value) {
                         showAlertModal('กรุณาเลือกผู้อนุมัติลำดับถัดไปก่อนอนุมัติ');
@@ -1402,29 +1420,31 @@
                 });
             }
 
-            // Approver department/user filter (only for non-DX mode)
-            const directNextApproverSelect = document.getElementById('directNextApproverSelect');
-            if (departmentSelect && approverSelect && !directNextApproverSelect) {
+            // Approver department/user filter
+            if (departmentSelect && approverSelect) {
                 // Initialize after DOM is fully loaded
                 const initApproverFilter = () => {
                     // Capture the originally selected option BEFORE any filtering
                     const originallySelectedOption = approverSelect.querySelector('option[selected]');
                     const originallySelectedUserId = originallySelectedOption ? originallySelectedOption.value : null;
-                    
-                    console.log('Originally selected user ID:', originallySelectedUserId);
-                    
                     const allApproverOptions = Array.from(approverSelect.querySelectorAll('option'))
                         .filter(option => option.value !== '');
 
+                    // Sync department dropdown to match the selected approver's department
+                    const selectedOption = allApproverOptions.find(opt => opt.value === originallySelectedUserId);
+                    if (selectedOption) {
+                        const selectedDept = selectedOption.getAttribute('data-department');
+                        if (selectedDept && departmentSelect.value !== selectedDept) {
+                            departmentSelect.value = selectedDept;
+                        }
+                    }
+
+                    // Filter approver options based on the selected department
                     function renderApproverOptions() {
                         const selectedDepartment = departmentSelect.value;
-                        const selectedApprover = approverSelect.value;
                         const selectedUserId = originallySelectedUserId || approverSelect.getAttribute('data-selected-user-id');
 
-                        console.log('Rendering approver options:', { selectedDepartment, selectedUserId, selectedApprover });
-
                         approverSelect.innerHTML = '';
-
                         const placeholder = document.createElement('option');
                         placeholder.value = '';
                         placeholder.textContent = '— Select approver —';
@@ -1435,59 +1455,36 @@
                         allApproverOptions.forEach(option => {
                             const department = option.getAttribute('data-department') || '';
                             const optionValue = option.value;
-                            
-                            // Always include the selected option even if department doesn't match
-                            const isSelectedOption = optionValue === selectedUserId || optionValue === selectedApprover;
-                            
-                            // Filter by department: only show users from selected department (or all if no department selected)
-                            if (selectedDepartment && department !== selectedDepartment && !isSelectedOption) {
-                                return; // Skip this option
+
+                            // Strict filter: only show users matching the selected department
+                            if (selectedDepartment && department !== selectedDepartment) {
+                                return;
                             }
 
                             const clonedOption = option.cloneNode(true);
-                            if (isSelectedOption) {
+                            // Preserve selection only if it matches the department filter
+                            if (optionValue === selectedUserId && (!selectedDepartment || department === selectedDepartment)) {
                                 clonedOption.selected = true;
                                 foundSelected = true;
-                                console.log('Found and selected:', optionValue);
                             }
 
                             approverSelect.appendChild(clonedOption);
                         });
 
-                        if (!foundSelected && selectedUserId) {
-                            // If selected user wasn't found, add them manually
-                            console.log('Selected user not found, adding manually:', selectedUserId);
-                            const selectedOption = allApproverOptions.find(opt => opt.value === selectedUserId);
-                            if (selectedOption) {
-                                const clonedOption = selectedOption.cloneNode(true);
+                        // If no department selected and user wasn't found, restore original selected user
+                        if (!foundSelected && !selectedDepartment && selectedUserId) {
+                            const originalOption = allApproverOptions.find(opt => opt.value === selectedUserId);
+                            if (originalOption) {
+                                const clonedOption = originalOption.cloneNode(true);
                                 clonedOption.selected = true;
                                 approverSelect.appendChild(clonedOption);
-                                foundSelected = true;
                             }
                         }
-                        
-                        console.log('Final selected value:', approverSelect.value, 'foundSelected:', foundSelected);
                     }
 
-                    // Set department filter to match selected user BEFORE first render
-                    if (originallySelectedUserId && departmentSelect) {
-                        const selectedOption = allApproverOptions.find(opt => opt.value === originallySelectedUserId);
-                        if (selectedOption) {
-                            const selectedDepartment = selectedOption.getAttribute('data-department');
-                            if (selectedDepartment && departmentSelect.value !== selectedDepartment) {
-                                // Temporarily remove event listener to prevent double render
-                                departmentSelect.removeEventListener('change', renderApproverOptions);
-                                departmentSelect.value = selectedDepartment;
-                                console.log('Set department to:', selectedDepartment);
-                                // Re-add event listener
-                                departmentSelect.addEventListener('change', renderApproverOptions);
-                            }
-                        }
-                    }
-                    
-                    // Add change event listener to department select
+                    // When department changes, filter the approver list
                     departmentSelect.addEventListener('change', renderApproverOptions);
-                    
+
                     // Initial render
                     renderApproverOptions();
                 };
@@ -1532,7 +1529,7 @@
             if (saveBtn && editForm) {
                 editForm.addEventListener('submit', function(e) {
                     // Validate approver department before saving (only for non-DX mode)
-                    const isDxMode = directNextApproverSelect !== null;
+                    const isDxMode = directNextApproverSelectEl !== null;
                     
                     if (!isDxMode && departmentSelect && approverSelect && !requesterEditModeJs) {
                         const currentUserDepartment = '@(ViewData["CurrentUserDepartment"]?.ToString() ?? string.Empty)';
@@ -1556,8 +1553,18 @@
                 });
             }
 
-            // Note: directNextApproverSelect is now independent and does not sync with approverSelect
-            // It has its own form submission handling
+            // Sync directNextApproverSelect to hiddenThirdApproverUserId field
+            const hiddenThirdApproverUserId = document.getElementById('hiddenThirdApproverUserId');
+            
+            if (directNextApproverSelectEl && hiddenThirdApproverUserId) {
+                // Update hidden field when dropdown changes
+                directNextApproverSelectEl.addEventListener('change', function() {
+                    hiddenThirdApproverUserId.value = this.value;
+                });
+                
+                // Initial sync
+                hiddenThirdApproverUserId.value = directNextApproverSelectEl.value;
+            }
 
             // Initial toggle
             toggleItAssignField();

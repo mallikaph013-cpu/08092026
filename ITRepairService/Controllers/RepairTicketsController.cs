@@ -1044,7 +1044,7 @@ public class RepairTicketsController(AppDbContext context, UserManager<Applicati
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Edit(int id, [Bind("Id,RequesterName,Department,DeviceName,IssueDescription,RepairType,Priority,Status,CreatedAt,ApproverDepartment,ApproverUserId,ApproverName,AssignedItUserId,AssignedItName,SecondApproverUserId,SecondApproverName,ThirdApproverUserId,ThirdApproverName,NextApproverUserId,NextApproverName,NextApproverDepartment,DriveAccessDepartment")] RepairTicket ticket, string? rejectRemark, List<TicketStatus>? approvalStatuses, string? thirdApproverUserId, IFormFile? pdfAttachment)
+    public async Task<IActionResult> Edit(int id, [Bind("Id,RequesterName,Department,DeviceName,IssueDescription,RepairType,Priority,Status,CreatedAt,ApproverDepartment,ApproverUserId,ApproverName,AssignedItUserId,AssignedItName,SecondApproverUserId,SecondApproverName,ThirdApproverUserId,ThirdApproverName,NextApproverUserId,NextApproverName,NextApproverDepartment,DriveAccessDepartment")] RepairTicket ticket, string? rejectRemark, List<TicketStatus>? approvalStatuses, IFormFile? pdfAttachment)
     {
         if (id != ticket.Id)
         {
@@ -1071,6 +1071,31 @@ public class RepairTicketsController(AppDbContext context, UserManager<Applicati
             && string.Equals(existingTicket.AssignedItUserId, currentUser.Id, StringComparison.Ordinal)
             && originalStatus == TicketStatus.InProgress;
         var isOwner = IsOwnerTicket(existingTicket, currentUser);
+        
+        // Handle ThirdApproverUserId from DX mode dropdown BEFORE clearing
+        // In DX mode, the "เลือกผู้อนุมัติ DX (ขั้นตอนสุดท้าย)" dropdown saves to ThirdApproverUserId
+        var thirdApproverUserIdFromForm = ticket.ThirdApproverUserId?.Trim();
+        
+        if (!string.IsNullOrWhiteSpace(thirdApproverUserIdFromForm))
+        {
+            existingTicket.ThirdApproverUserId = thirdApproverUserIdFromForm;
+            
+            // Look up the third approver from the user ID
+            var thirdApproverUser = await _userManager.FindByIdAsync(thirdApproverUserIdFromForm);
+            
+            // Auto-populate ThirdApproverName from user database
+            existingTicket.ThirdApproverName = !string.IsNullOrWhiteSpace(thirdApproverUser?.FullName)
+                ? thirdApproverUser.FullName
+                : (thirdApproverUser?.UserName ?? thirdApproverUser?.Email ?? "Unknown");
+            
+            Console.WriteLine($"DEBUG: Updated ThirdApproverUserId to: '{existingTicket.ThirdApproverUserId}'");
+            Console.WriteLine($"DEBUG: Updated ThirdApproverName to: '{existingTicket.ThirdApproverName}'");
+        }
+        
+        // Clear ThirdApprover fields from the bound model to prevent unwanted updates
+        // ThirdApprover should ONLY be set by explicit form submission or controller logic
+        ticket.ThirdApproverUserId = null;
+        ticket.ThirdApproverName = null;
         var persistedTimelineStatuses = await _context.RepairTicketStatusHistories
             .AsNoTracking()
             .Where(history => history.RepairTicketId == existingTicket.Id)
@@ -1416,34 +1441,11 @@ public class RepairTicketsController(AppDbContext context, UserManager<Applicati
         // If form didn't provide value, keep the existing value (set by auto-routing logic above)
         // If first approver (ApproverUserId) has not approved yet, do NOT save SecondApproverUserId from the form
 
-        // Handle ThirdApproverUserId (SM/DM of DX for Drive Access)
-        // Only set ThirdApprover when:
-        // 1. Ticket is DriveAccessPermission AND status is Approved
-        // 2. ThirdApproverUserId is not already set (first time setting)
-        // 3. First approver (ApproverUserId) and SecondApprover (SecondApproverUserId) have already approved
-        // 4. This is NOT a new approval by the first approver (isNewApproval = false)
-        if (existingTicket.RepairType == RepairType.DriveAccessPermission 
-            && currentUser != null 
-            && canEditStatus
-            && !isNewApproval
-            && (effectiveStatus == TicketStatus.Approved || originalStatus == TicketStatus.Approved)
-            && string.IsNullOrWhiteSpace(existingTicket.ThirdApproverUserId)
-            && !string.IsNullOrWhiteSpace(existingTicket.ApproverUserId)
-            && !string.IsNullOrWhiteSpace(existingTicket.SecondApproverUserId))
-        {
-            // Set ThirdApprover to the current user who is performing the third approval
-            // This ensures ThirdApprover is only set once by the third approver
-            existingTicket.ThirdApproverUserId = currentUser.Id;
-            existingTicket.ThirdApproverName = !string.IsNullOrWhiteSpace(currentUser.FullName)
-                ? currentUser.FullName
-                : (currentUser.UserName ?? currentUser.Email ?? "Unknown");
-        }
-        // For non-DriveAccessPermission tickets or non-approved tickets, clear the fields
-        else if (existingTicket.RepairType != RepairType.DriveAccessPermission || (effectiveStatus != TicketStatus.Approved && originalStatus != TicketStatus.Approved))
-        {
-            existingTicket.ThirdApproverUserId = null;
-            existingTicket.ThirdApproverName = null;
-        }
+        // Note: ThirdApproverUserId is NOT handled here
+        // It should only be set when the workflow reaches the third approval stage
+        // The dropdown is disabled and has no name attribute, so it won't be submitted
+        // If ThirdApprover needs to be set in the future, it should be done explicitly
+        // when the third approver performs their approval action
 
         // Handle NextApprover fields - allow manual override from form if provided
         // Only update if form provided values (auto-routing only happens on new approval without form values)
@@ -1477,6 +1479,7 @@ public class RepairTicketsController(AppDbContext context, UserManager<Applicati
             // This prevents clearing when the DX dropdown is not shown
             Console.WriteLine($"DEBUG: Preserving existing NextApproverUserId: '{existingTicket.NextApproverUserId}'");
         }
+
 
         // Check if current user is DX approver
         var isDxApprover = string.Equals(currentUserDepartment, "DX", StringComparison.OrdinalIgnoreCase)
