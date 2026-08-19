@@ -79,13 +79,21 @@ public class RepairTicket
     [Display(Name = "ชื่อผู้อนุมัติระดับ 2")]
     public string? SecondApproverName { get; set; }
 
-    [StringLength(450)]
-    [Display(Name = "ผู้อนุมัติระดับ 3 (SM/DM ของฝ่ายที่ขอสิทธิ์ Drive)")]
-    public string? ThirdApproverUserId { get; set; }
+     [StringLength(450)]
+     [Display(Name = "ผู้อนุมัติระดับ 3 (SM/DM ของฝ่ายที่ขอสิทธิ์ Drive)")]
+     public string? ThirdApproverUserId { get; set; }
 
      [StringLength(150)]
      [Display(Name = "ชื่อผู้อนุมัติระดับ 3")]
      public string? ThirdApproverName { get; set; }
+
+     [StringLength(450)]
+     [Display(Name = "ผู้อนุมัติ DX (ขั้นตอนสุดท้าย)")]
+     public string? DxFinalApproverUserId { get; set; }
+
+     [StringLength(150)]
+     [Display(Name = "ชื่อผู้อนุมัติ DX (ขั้นตอนสุดท้าย)")]
+     public string? DxFinalApproverName { get; set; }
 
      [StringLength(450)]
      [Display(Name = "ผู้อนุมัติลำดับถัดไป")]
@@ -102,9 +110,13 @@ public class RepairTicket
      [Display(Name = "ระดับการอนุมัติ")]
      public int ApprovalLevel { get; set; } = 1;
 
-    [StringLength(450)]
-    [Display(Name = "ผู้รับมอบหมายงาน (IT)")]
-    public string AssignedItUserId { get; set; } = string.Empty;
+     [Display(Name = "ขั้นตอนที่")]
+     [Range(1, 100, ErrorMessage = "ขั้นตอนต้องอยู่ระหว่าง 1 ถึง 100")]
+     public int Step { get; set; } = 1;
+
+     [StringLength(450)]
+     [Display(Name = "ผู้รับมอบหมายงาน (IT)")]
+     public string AssignedItUserId { get; set; } = string.Empty;
 
     [StringLength(150)]
     [Display(Name = "ชื่อผู้รับมอบหมายงาน")]
@@ -128,6 +140,10 @@ public class RepairTicket
 
     [Display(Name = "ขนาดไฟล์ (bytes)")]
     public long? PdfAttachmentFileSize { get; set; }
+
+    [Display(Name = "ขนาดไฟล์ (bytes)")]
+    public string? pdfAttachment { get; set; }
+
 
     public ICollection<RepairTicketStatusHistory> StatusHistories { get; set; } = new List<RepairTicketStatusHistory>();
 }

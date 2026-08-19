@@ -1,0 +1,276 @@
+@model IEnumerable<ITRepairService.Models.RepairTicket>
+
+@{
+    ViewData["Title"] = "Assigned To Me";
+    var tickets = Model?.ToList() ?? new List<ITRepairService.Models.RepairTicket>();
+    var currentStatus = ViewData["CurrentStatus"]?.ToString();
+    var currentSort = ViewData["CurrentSort"]?.ToString() ?? "created";
+    var currentDir = ViewData["CurrentDir"]?.ToString() ?? "desc";
+    var latestStatusUpdatedBy = ViewData["LatestStatusUpdatedBy"] as Dictionary<int, string>
+        ?? new Dictionary<int, string>();
+
+    string GetStatusDisplay(ITRepairService.Models.RepairTicket ticket)
+    {
+        var status = ticket.Status;
+        return status == ITRepairService.Models.TicketStatus.Approved
+            ? "Approved (ผู้อนุมัติได้อนุมัติรายการ)"
+            : status.GetDisplayName();
+    }
+
+    string NextDir(string field)
+    {
+        return currentSort == field && currentDir == "asc" ? "desc" : "asc";
+    }
+
+    string GetApproverDisplay(ITRepairService.Models.RepairTicket ticket)
+    {
+        if (latestStatusUpdatedBy.TryGetValue(ticket.Id, out var updater) && !string.IsNullOrWhiteSpace(updater))
+        {
+            return updater;
+        }
+        if (!string.IsNullOrWhiteSpace(ticket.ApproverName))
+        {
+            return ticket.ApproverName;
+        }
+        if (!string.IsNullOrWhiteSpace(ticket.NextApproverName))
+        {
+            return ticket.NextApproverName;
+        }
+        return "-";
+    }
+
+    string SortIcon(string field)
+    {
+        if (currentSort != field) return "fa-sort text-secondary";
+        return currentDir == "asc" ? "fa-sort-up" : "fa-sort-down";
+    }
+
+    string GetStatusBadgeClass(ITRepairService.Models.TicketStatus status)
+    {
+        return status switch
+        {
+            ITRepairService.Models.TicketStatus.Open => "badge-open",
+            ITRepairService.Models.TicketStatus.InProgress => "badge-inprogress",
+            ITRepairService.Models.TicketStatus.Approved => "badge-approved",
+            ITRepairService.Models.TicketStatus.Rejected => "badge-rejected",
+            ITRepairService.Models.TicketStatus.Complete => "badge-complete",
+            ITRepairService.Models.TicketStatus.Closed => "badge-closed",
+            _ => "bg-secondary"
+        };
+    }
+}
+
+<div class="repairtickets-page">
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card page-header">
+                <div class="card-body py-4 d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+                    <div>
+                        <h1 class="h2 fw-bold mb-1 d-flex align-items-center gap-2">
+                            <i class="fas fa-user-cog me-2"></i>Assigned To Me
+                        </h1>
+                        <p class="mb-0 opacity-90">งานที่ถูกมอบหมายให้ฉัน</p>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="badge rounded-pill bg-white text-primary px-3 py-2 fs-6">@tickets.Count Case</span>
+                        <a asp-action="Index" class="btn btn-light fw-semibold btn-auto">
+                            <i class="fas fa-list me-2"></i>All Tickets
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card card-filter shadow-sm mb-3">
+        <div class="card-body py-3">
+            <form method="get" class="row g-2 align-items-center">
+                <div class="col-12 col-md-4 col-lg-3">
+                    <label class="form-label mb-1">
+                        <i class="fas fa-filter me-1"></i>Status
+                    </label>
+                    <select class="form-select" name="status">
+                        <option value="">All Statuses</option>
+                        @foreach (ITRepairService.Models.TicketStatus status in Enum.GetValues(typeof(ITRepairService.Models.TicketStatus)))
+                        {
+                            var isSelected = currentStatus == status.ToString();
+                            <option value="@status" selected="@isSelected">@status.GetDisplayName()</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-12 col-md-auto d-flex gap-2 mt-md-4">
+                    <button type="submit" class="btn btn-primary btn-auto">
+                        <i class="fas fa-filter me-2"></i>Filter
+                    </button>
+                    <a asp-action="AssignedToMe" class="btn btn-outline-secondary btn-auto">
+                        <i class="fas fa-rotate-left me-2"></i>Reset
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-body p-0">
+            @if (!tickets.Any())
+            {
+                <div class="text-center py-5 m-3 empty-state">
+                    <div class="py-4">
+                        <div class="display-4 text-secondary mb-3">
+                            <i class="fas fa-inbox"></i>
+                        </div>
+                        <h2 class="h4 mb-2">No assigned tickets found</h2>
+                        <p class="text-secondary mb-4">ไม่มีงานที่ถูกมอบหมายให้คุณในขณะนี้</p>
+                        <a asp-action="Index" class="btn btn-primary px-4 btn-auto">
+                            <i class="fas fa-list me-2"></i>View All Tickets
+                        </a>
+                    </div>
+                </div>
+            }
+            else
+            {
+                @* Mobile cards *@
+                <div class="d-grid gap-3 p-3 d-md-none">
+                    @foreach (var item in tickets)
+                    {
+                        var badgeClass = GetStatusBadgeClass(item.Status);
+
+                        <div class="mobile-ticket-card p-3 shadow-sm">
+                            <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
+                                <div>
+                                    <p class="mb-0 small text-primary fw-semibold">
+                                        <i class="fas fa-file-alt me-1"></i>@(string.IsNullOrWhiteSpace(item.DocumentNo) ? "-" : item.DocumentNo)
+                                    </p>
+                                    <h3 class="h6 mb-1 fw-bold mt-1">@item.RequesterName</h3>
+                                    <p class="mb-0 text-secondary small">
+                                        <i class="fas fa-building me-1"></i>@item.Department
+                                    </p>
+                                </div>
+                                <span class="badge badge-status @badgeClass">@GetStatusDisplay(item)</span>
+                            </div>
+
+                            <div class="mb-2 d-flex justify-content-between align-items-center">
+                                <div>
+                                    <div class="meta-label mb-1">
+                                        <i class="fas fa-tools me-1"></i>Repair Type
+                                    </div>
+                                    <div class="fw-semibold small">@item.RepairType</div>
+                                </div>
+                                <div class="text-end">
+                                    <div class="meta-label mb-1">
+                                        <i class="fas fa-user-check me-1"></i>Approver
+                                    </div>
+                                    <div class="fw-semibold small">@GetApproverDisplay(item)</div>
+                                </div>
+                            </div>
+
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <small class="text-secondary">
+                                    <i class="fas fa-clock me-1"></i>@item.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")
+                                </small>
+                            </div>
+
+                            <div class="btn-group-action">
+                                <a asp-action="Edit" asp-route-id="@item.Id" class="btn btn-sm btn-outline-warning btn-auto">
+                                    <i class="fas fa-pen me-1"></i>Edit
+                                </a>
+                                <a asp-action="Details" asp-route-id="@item.Id" class="btn btn-sm btn-outline-info btn-auto">
+                                    <i class="fas fa-eye me-1"></i>Details
+                                </a>
+                            </div>
+                        </div>
+                    }
+                </div>
+
+                @* Desktop table *@
+                <div class="table-responsive d-none d-md-block">
+                    <table class="table table-hover mb-0 w-100">
+                        <thead>
+                            <tr>
+                                <th class="ps-4" style="width: 120px;">Document No.</th>
+                                <th class="ps-4" style="width: 180px; min-width: 150px;">
+                                    <a asp-action="AssignedToMe"
+                                       asp-route-status="@currentStatus"
+                                       asp-route-sort="requester"
+                                       asp-route-dir="@NextDir("requester")"
+                                       class="sort-link">
+                                         Requester <i class="fas @SortIcon("requester")"></i>
+                                    </a>
+                                </th>
+                                <th style="width: 140px; min-width: 120px;">Department</th>
+                                <th style="width: 130px; min-width: 110px;">Type</th>
+                                <th style="width: 160px; min-width: 140px;">Approver</th>
+                                <th style="width: 120px; min-width: 100px;">Status</th>
+                                <th style="width: 130px; min-width: 110px;">
+                                    <a asp-action="AssignedToMe"
+                                       asp-route-status="@currentStatus"
+                                       asp-route-sort="created"
+                                       asp-route-dir="@NextDir("created")"
+                                       class="sort-link">
+                                         Created <i class="fas @SortIcon("created")"></i>
+                                    </a>
+                                </th>
+                                <th class="text-end pe-4" style="width: 200px;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var item in tickets)
+                            {
+                                var badgeClass = GetStatusBadgeClass(item.Status);
+
+                                <tr>
+                                    <td class="ps-4 text-primary fw-semibold text-nowrap">
+                                        <i class="fas fa-file-alt me-1"></i>@(string.IsNullOrWhiteSpace(item.DocumentNo) ? "-" : item.DocumentNo)
+                                    </td>
+                                    <td class="fw-semibold text-nowrap">
+                                        <i class="fas fa-user text-secondary me-1"></i>@item.RequesterName
+                                    </td>
+                                    <td class="text-nowrap">
+                                        <span class="badge bg-light text-dark">
+                                            <i class="fas fa-building me-1"></i>@item.Department
+                                        </span>
+                                    </td>
+                                    <td class="text-nowrap">
+                                        <span class="badge bg-light text-dark">
+                                            <i class="fas fa-tools me-1"></i>@item.RepairType
+                                        </span>
+                                    </td>
+                                    <td class="text-nowrap">
+                                        <span class="fw-semibold small">
+                                            <i class="fas fa-user-check text-secondary me-1"></i>@GetApproverDisplay(item)
+                                        </span>
+                                    </td>
+                                    <td class="text-nowrap">
+                                        <span class="badge badge-status @badgeClass">@GetStatusDisplay(item)</span>
+                                    </td>
+                                    <td class="text-nowrap">
+                                        <i class="fas fa-clock text-secondary me-1"></i>@item.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")
+                                    </td>
+                                    <td class="text-end pe-4">
+                                        <div class="btn-group-action">
+                                            <a asp-action="Edit" asp-route-id="@item.Id" class="btn btn-sm btn-outline-warning btn-auto">
+                                                <i class="fas fa-pen me-1"></i>
+                                            </a>
+                                            <a asp-action="Details" asp-route-id="@item.Id" class="btn btn-sm btn-outline-info btn-auto">
+                                                <i class="fas fa-eye me-1"></i>
+                                            </a>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+<style>
+    .btn-group-action .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 32px;
+    }
+</style>

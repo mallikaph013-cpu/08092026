@@ -157,5 +157,52 @@ public static class IdentitySeeder
                 await userManager.AddToRoleAsync(smDXUser, AppRoles.Admin);
             }
         }
+
+        // Test User 5: Regular user in HR department (non-SM/DM, non-DX)
+        // Expected roles: User only
+        var regularHRUser = await userManager.FindByNameAsync("test_user_hr");
+        if (regularHRUser is null)
+        {
+            regularHRUser = new ApplicationUser
+            {
+                UserName = "test_user_hr",
+                Email = "test_user_hr@example.com",
+                FullName = "Test User HR",
+                Department = "HR",
+                Title = "",
+                EmailConfirmed = true,
+                IsActive = true
+            };
+
+            var createResult = await userManager.CreateAsync(regularHRUser, "Test@1234");
+            if (createResult.Succeeded)
+            {
+                await userManager.AddToRoleAsync(regularHRUser, AppRoles.User);
+            }
+        }
+
+        // Test User 6: SM/DM in HR department with Approve role
+        // Expected roles: User, Approve
+        var smHRUser = await userManager.FindByNameAsync("test_sm_hr");
+        if (smHRUser is null)
+        {
+            smHRUser = new ApplicationUser
+            {
+                UserName = "test_sm_hr",
+                Email = "test_sm_hr@example.com",
+                FullName = "Test SM HR",
+                Department = "HR",
+                Title = "SM",
+                EmailConfirmed = true,
+                IsActive = true
+            };
+
+            var createResult = await userManager.CreateAsync(smHRUser, "Test@1234");
+            if (createResult.Succeeded)
+            {
+                await userManager.AddToRoleAsync(smHRUser, AppRoles.User);
+                await userManager.AddToRoleAsync(smHRUser, AppRoles.Approve);
+            }
+        }
     }
 }

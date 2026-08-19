@@ -1,4 +1,4 @@
-@model ITRepairService.Models.RepairTicket
+﻿@model ITRepairService.Models.RepairTicket
 
 @{
     ViewData["Title"] = "Edit IT Service";
@@ -48,21 +48,6 @@
         || Model.Status == ITRepairService.Models.TicketStatus.Complete
         || Model.Status == ITRepairService.Models.TicketStatus.Closed;
     var lockPrimaryStatusSelection = !assigneeCompleteOnlyMode && (hasPriorStatusSteps || !canEditStatusByUser);
-    var isRequesterEditOpen = requesterEditMode && Model.Status == ITRepairService.Models.TicketStatus.Open;
-    var isRequesterEditLocked = requesterEditMode && Model.Status != ITRepairService.Models.TicketStatus.Open;
-    var isCurrentUserApproverStep1 = !string.IsNullOrWhiteSpace(Model.ApproverUserId)
-        && Model.ApproverUserId == currentUserId
-        && Model.Step == 1
-        && string.IsNullOrWhiteSpace(Model.SecondApproverUserId);
-    var isDifferentApproverStep1 = !string.IsNullOrWhiteSpace(Model.ApproverUserId)
-        && Model.ApproverUserId != currentUserId
-        && Model.Step == 1
-        && string.IsNullOrWhiteSpace(Model.SecondApproverUserId);
-    var isThirdPartyViewerStep2 = !string.IsNullOrWhiteSpace(Model.ApproverUserId)
-        && !string.IsNullOrWhiteSpace(Model.SecondApproverUserId)
-        && Model.Step == 2
-        && Model.ApproverUserId != currentUserId
-        && Model.SecondApproverUserId != currentUserId;
 
     Model.Status = flowPrimaryStatus;
 
@@ -563,14 +548,14 @@
                         {
                             <div class="alert alert-info d-flex align-items-center gap-2">
                                 <i class="fas fa-check-circle fa-lg"></i>
-                                <span>IT ได้ดำเนินการเสร็จเรียบร้อยแล้ว กรุณากด <strong>Close</strong> เพื่อปิดงาน</span>
+                                <span>IT เนเธ”เนเธ”เธณเน€เธเธดเธเธเธฒเธฃเน€เธชเธฃเนเธเน€เธฃเธตเธขเธเธฃเนเธญเธขเนเธฅเนเธง เธเธฃเธธเธ“เธฒเธเธ” <strong>Close</strong> เน€เธเธทเนเธญเธเธดเธ”เธเธฒเธ</span>
                             </div>
                         }
                         else
                         {
                             <div class="alert alert-warning d-flex align-items-center gap-2">
                                 <i class="fas fa-rotate-left fa-lg"></i>
-                                <span>เมื่อบันทึก ระบบจะส่งรายการกลับเป็นสถานะ <strong>Open</strong> อัตโนมัติ</span>
+                                <span>เน€เธกเธทเนเธญเธเธฑเธเธ—เธถเธ เธฃเธฐเธเธเธเธฐเธชเนเธเธฃเธฒเธขเธเธฒเธฃเธเธฅเธฑเธเน€เธเนเธเธชเธ–เธฒเธเธฐ <strong>Open</strong> เธญเธฑเธ•เนเธเธกเธฑเธ•เธด</span>
                             </div>
                         }
                     }
@@ -578,7 +563,7 @@
                     <div class="form-row-grid">
                         <div class="mb-3">
                             <label asp-for="RequesterName" class="form-label">
-                                <i class="fas fa-user me-1"></i>ผู้แจ้งซ่อม
+                                <i class="fas fa-user me-1"></i>เธเธนเนเนเธเนเธเธเนเธญเธก
                             </label>
                             <input asp-for="RequesterName" class="form-control" readonly />
                             <span asp-validation-for="RequesterName" class="text-danger small"></span>
@@ -586,65 +571,36 @@
 
                         <div class="mb-3">
                             <label asp-for="Department" class="form-label">
-                                <i class="fas fa-building me-1"></i>ฝ่าย
+                                <i class="fas fa-building me-1"></i>เธเนเธฒเธข
                             </label>
                             <input asp-for="Department" class="form-control" readonly />
                             <span asp-validation-for="Department" class="text-danger small"></span>
                         </div>
                     </div>
 
-                    <div class="form-row-grid">
-                        <div class="mb-3">
-                            <label asp-for="RepairType" class="form-label">
-                                <i class="fas fa-tools me-1"></i>ประเภทการแจ้งซ่อม
-                            </label>
-                            @if (isApprovedOrBeyond)
-                            {
-                                <select asp-for="RepairType" class="form-select" asp-items="Html.GetEnumSelectList<ITRepairService.Models.RepairType>()" disabled></select>
-                            }
-                            else
-                            {
-                                <select asp-for="RepairType" class="form-select" asp-items="Html.GetEnumSelectList<ITRepairService.Models.RepairType>()"></select>
-                            }
-                            <span asp-validation-for="RepairType" class="text-danger small"></span>
-                        </div>
-
-                        @* <div class="mb-3">
-                            <label asp-for="Step" class="form-label">
-                                <i class="fas fa-shoe-prints me-1"></i>ขั้นตอนที่
-                            </label>
-                            <input asp-for="Step" class="form-control" type="number" min="1" max="100" />
-                            <span asp-validation-for="Step" class="text-danger small"></span>
-                        </div> *@
+                    <div class="mb-3">
+                        <label asp-for="RepairType" class="form-label">
+                            <i class="fas fa-tools me-1"></i>เธเธฃเธฐเน€เธ เธ—เธเธฒเธฃเนเธเนเธเธเนเธญเธก
+                        </label>
+                        @if (isApprovedOrBeyond)
+                        {
+                            <select asp-for="RepairType" class="form-select" asp-items="Html.GetEnumSelectList<ITRepairService.Models.RepairType>()" disabled></select>
+                        }
+                        else
+                        {
+                            <select asp-for="RepairType" class="form-select" asp-items="Html.GetEnumSelectList<ITRepairService.Models.RepairType>()"></select>
+                        }
+                        <span asp-validation-for="RepairType" class="text-danger small"></span>
                     </div>
 
-                    @if (isDriveAccessRepairType && (!requesterEditMode || isRequesterEditOpen))
+                    @if (isDriveAccessRepairType && !requesterEditMode)
                     {
-                        var isDriveAccessReadOnly = Model.Status != ITRepairService.Models.TicketStatus.Open;
-                        var driveAccessDepartmentList = driveAccessDepartments
-                            .Select(item => item.Text)
-                            .Where(text => !string.IsNullOrWhiteSpace(text))
-                            .Distinct()
-                            .OrderBy(text => text)
-                            .ToList();
                         <div class="mb-3" id="driveAccessDepartmentGroup">
                             <label asp-for="DriveAccessDepartment" class="form-label">
-                                <i class="fas fa-folder-open me-1"></i>ฝ่ายที่ต้องการขอสิทธิ์ Drive
+                                <i class="fas fa-folder-open me-1"></i>เธเนเธฒเธขเธ—เธตเนเธ•เนเธญเธเธเธฒเธฃเธเธญเธชเธดเธ—เธเธดเน Drive
                             </label>
-                            <select asp-for="DriveAccessDepartment" class="form-select" id="driveAccessDepartmentSelect" disabled="@isDriveAccessReadOnly">
-                                <option value="">— เลือกฝ่าย —</option>
-                                @foreach (var dept in driveAccessDepartmentList)
-                                {
-                                    var isDeptSelected = string.Equals(Model.DriveAccessDepartment?.Trim(), dept, StringComparison.OrdinalIgnoreCase);
-                                    @if (isDeptSelected)
-                                    {
-                                        <option value="@dept" selected>@dept</option>
-                                    }
-                                    else
-                                    {
-                                        <option value="@dept">@dept</option>
-                                    }
-                                }
+                            <select asp-for="DriveAccessDepartment" class="form-select" asp-items="driveAccessDepartments" id="driveAccessDepartmentSelect">
+                                <option value="">โ€” เน€เธฅเธทเธญเธเธเนเธฒเธข โ€”</option>
                             </select>
                             <span asp-validation-for="DriveAccessDepartment" class="text-danger small"></span>
                         </div>
@@ -652,7 +608,7 @@
 
                     <div class="mb-3">
                         <label asp-for="IssueDescription" class="form-label">
-                            <i class="fas fa-align-left me-1"></i>รายละเอียดปัญหา
+                            <i class="fas fa-align-left me-1"></i>เธฃเธฒเธขเธฅเธฐเน€เธญเธตเธขเธ”เธเธฑเธเธซเธฒ
                         </label>
                         @if (isApprovedOrBeyond)
                         {
@@ -660,26 +616,26 @@
                         }
                         else
                         {
-                            <textarea asp-for="IssueDescription" class="form-control" rows="4" placeholder="กรุณาระบุรายละเอียดปัญหา..."></textarea>
+                            <textarea asp-for="IssueDescription" class="form-control" rows="4" placeholder="เธเธฃเธธเธ“เธฒเธฃเธฐเธเธธเธฃเธฒเธขเธฅเธฐเน€เธญเธตเธขเธ”เธเธฑเธเธซเธฒ..."></textarea>
                         }
                         <span asp-validation-for="IssueDescription" class="text-danger small"></span>
                     </div>
 
                     <div class="mb-3">
                         <label class="form-label">
-                            <i class="fas fa-file-pdf me-1"></i>ไฟล์แนบ PDF
+                            <i class="fas fa-file-pdf me-1"></i>เนเธเธฅเนเนเธเธ PDF
                         </label>
                         @if (!string.IsNullOrEmpty(Model.PdfAttachmentFileName))
                         {
                             <div class="alert alert-info py-2 mb-2">
-                                <i class="fas fa-file-pdf me-1"></i>ไฟล์ปัจจุบัน: @Model.PdfAttachmentFileName
+                                <i class="fas fa-file-pdf me-1"></i>เนเธเธฅเนเธเธฑเธเธเธธเธเธฑเธ: @Model.PdfAttachmentFileName
                                 <br />
-                                <small>ขนาด: @(((Model.PdfAttachmentFileSize ?? 0) / 1024.0).ToString("N2")) KB</small>
+                                <small>เธเธเธฒเธ”: @(((Model.PdfAttachmentFileSize ?? 0) / 1024.0).ToString("N2")) KB</small>
                             </div>
                         }
                         <input type="file" name="pdfAttachment" class="form-control" accept=".pdf" />
                         <div class="form-text">
-                            <i class="fas fa-info-circle me-1"></i>รองรับเฉพาะไฟล์ PDF เท่านั้น ขนาดไฟล์ไม่เกิน 10MB (เลือกไฟล์ใหม่เพื่อแทนที่)
+                            <i class="fas fa-info-circle me-1"></i>เธฃเธญเธเธฃเธฑเธเน€เธเธเธฒเธฐเนเธเธฅเน PDF เน€เธ—เนเธฒเธเธฑเนเธ เธเธเธฒเธ”เนเธเธฅเนเนเธกเนเน€เธเธดเธ 10MB (เน€เธฅเธทเธญเธเนเธเธฅเนเนเธซเธกเนเน€เธเธทเนเธญเนเธ—เธเธ—เธตเน)
                         </div>
                         <span class="text-danger small" data-valmsg-for="pdfAttachment" data-valmsg-replace="true"></span>
                     </div>
@@ -688,161 +644,32 @@
 
                     <div class="mb-3">
                         <label class="form-label">
-                            <i class="fas fa-share me-1"></i>ฝ่ายที่อนุมัติลำดับถัดไป
+                            <i class="fas fa-share me-1"></i>เธเนเธฒเธขเธ—เธตเนเธญเธเธธเธกเธฑเธ•เธดเธฅเธณเธ”เธฑเธเธ–เธฑเธ”เนเธ
                         </label>
-                        @if (isRequesterEditOpen)
-                        {
-                            <input asp-for="NextApproverDepartment" class="form-control" readonly />
-                        }
-                        else if (isCurrentUserApproverStep1)
-                        {
-                            <select asp-for="NextApproverDepartment" class="form-select" asp-items="approverDepartments" id="approverDepartmentSelect">
-                                <option value="">— Select approver department —</option>
-                            </select>
-                            <div class="form-text">
-                                <i class="fas fa-info-circle me-1"></i>ใช้ระบุว่าขั้นตอนถัดไปของงานจะส่งไปที่ฝ่ายใด
-                            </div>
-                        }
-                        else if (isThirdPartyViewerStep2
-                            || requesterEditMode 
-                            || ViewData["NextApproverFilterMode"]?.ToString() == "DX"
-                            || (!string.IsNullOrWhiteSpace(Model.ApproverUserId) && string.IsNullOrWhiteSpace(Model.SecondApproverUserId)  && Model.Step == 2 ))
+                        @if (requesterEditMode || ViewData["NextApproverFilterMode"]?.ToString() == "DX")
                         {
                             <input asp-for="NextApproverDepartment" class="form-control" readonly />
                         }
                         else
                         {
                             <select asp-for="NextApproverDepartment" class="form-select" asp-items="approverDepartments" id="approverDepartmentSelect">
-                                <option value="">— Select approver department —</option>
+                                <option value="">โ€” Select approver department โ€”</option>
                             </select>
                             <div class="form-text">
-                                <i class="fas fa-info-circle me-1"></i>ใช้ระบุว่าขั้นตอนถัดไปของงานจะส่งไปที่ฝ่ายใด
+                                <i class="fas fa-info-circle me-1"></i>เนเธเนเธฃเธฐเธเธธเธงเนเธฒเธเธฑเนเธเธ•เธญเธเธ–เธฑเธ”เนเธเธเธญเธเธเธฒเธเธเธฐเธชเนเธเนเธเธ—เธตเนเธเนเธฒเธขเนเธ”
                             </div>
                         }
                         <span asp-validation-for="NextApproverDepartment" class="text-danger small"></span>
                     </div>
 
-                    @if (isRequesterEditOpen)
+                    @if (!requesterEditMode)
                     {
                         <div class="mb-3">
                             <label class="form-label">
-                                <i class="fas fa-user-check me-1"></i>ผู้อนุมัติลำดับถัดไป
-                            </label>
-                            <select asp-for="NextApproverUserId"
-                                    class="form-select"
-                                    id="approverUserSelect"
-                                    data-current-user-id="@currentUserId"
-                                    data-is-approve-user="@(isApproveUser ? "true" : "false")"
-                                    data-selected-user-id="@ViewData["NextApproverUserId"]">
-                                <option value="">— Select approver —</option>
-                                @foreach (var approver in approverUsers)
-                                {
-                                    var displayName = !string.IsNullOrWhiteSpace(approver.FullName)
-                                        ? approver.FullName
-                                        : (approver.UserName ?? approver.Email ?? "Unknown User");
-                                    var userNameForDisplay = !string.IsNullOrWhiteSpace(approver.UserName)
-                                        ? approver.UserName
-                                        : approver.Email;
-                                    var departmentValue = approver.Department?.Trim() ?? string.Empty;
-                                    var isSelected = ViewData["NextApproverUserId"]?.ToString() == approver.Id;
-
-                                    @if (isSelected)
-                                    {
-                                        // Use NextApproverName from database if available, otherwise use displayName
-                                        var selectedDisplayName = !string.IsNullOrWhiteSpace(Model.NextApproverName) 
-                                            ? Model.NextApproverName 
-                                            : displayName;
-                                        <option value="@approver.Id" data-department="@departmentValue" selected>@selectedDisplayName (@userNameForDisplay)</option>
-                                    }
-                                    else
-                                    {
-                                        <option value="@approver.Id" data-department="@departmentValue">@displayName (@userNameForDisplay)</option>
-                                    }
-                                }
-                            </select>
-                            <div class="form-text">
-                                <i class="fas fa-info-circle me-1"></i>เลือกคนที่ระบบจะส่งงานต่อไปให้ ไม่ได้ผูกกับสถานะของรายการ
-                            </div>
-                            <span asp-validation-for="NextApproverUserId" class="text-danger small"></span>
-                        </div>
-                    }
-                    else if (isRequesterEditLocked)
-                    {
-                        <div class="mb-3">
-                            <label class="form-label">
-                                <i class="fas fa-user-check me-1"></i>ผู้อนุมัติลำดับถัดไป
-                            </label>
-                            <input asp-for="NextApproverName" class="form-control" readonly />
-                            <input type="hidden" asp-for="NextApproverUserId" />
-                        </div>
-                    }
-                    else if (isCurrentUserApproverStep1)
-                    {
-                        <div class="mb-3">
-                            <label class="form-label">
-                                <i class="fas fa-user-check me-1"></i>ผู้อนุมัติลำดับถัดไป
-                            </label>
-                            <select asp-for="NextApproverUserId"
-                                    class="form-select"
-                                    id="approverUserSelect"
-                                    data-current-user-id="@currentUserId"
-                                    data-is-approve-user="@(isApproveUser ? "true" : "false")"
-                                    data-selected-user-id="@ViewData["NextApproverUserId"]">
-                                <option value="">— Select approver —</option>
-                                @foreach (var approver in approverUsers)
-                                {
-                                    var displayName = !string.IsNullOrWhiteSpace(approver.FullName)
-                                        ? approver.FullName
-                                        : (approver.UserName ?? approver.Email ?? "Unknown User");
-                                    var userNameForDisplay = !string.IsNullOrWhiteSpace(approver.UserName)
-                                        ? approver.UserName
-                                        : approver.Email;
-                                    var departmentValue = approver.Department?.Trim() ?? string.Empty;
-                                    var isSelected = ViewData["NextApproverUserId"]?.ToString() == approver.Id;
-
-                                    @if (isSelected)
-                                    {
-                                        // Use NextApproverName from database if available, otherwise use displayName
-                                        var selectedDisplayName = !string.IsNullOrWhiteSpace(Model.NextApproverName) 
-                                            ? Model.NextApproverName 
-                                            : displayName;
-                                        <option value="@approver.Id" data-department="@departmentValue" selected>@selectedDisplayName (@userNameForDisplay)</option>
-                                    }
-                                    else
-                                    {
-                                        <option value="@approver.Id" data-department="@departmentValue">@displayName (@userNameForDisplay)</option>
-                                    }
-                                }
-                            </select>
-                            <div class="form-text">
-                                <i class="fas fa-info-circle me-1"></i>เลือกคนที่ระบบจะส่งงานต่อไปให้ ไม่ได้ผูกกับสถานะของรายการ
-                            </div>
-                            <span asp-validation-for="NextApproverUserId" class="text-danger small"></span>
-                        </div>
-                    }
-                    else if (isThirdPartyViewerStep2
-                            || requesterEditMode 
-                            || ViewData["NextApproverFilterMode"]?.ToString() == "DX"
-                            || (!string.IsNullOrWhiteSpace(Model.ApproverUserId) && string.IsNullOrWhiteSpace(Model.SecondApproverUserId)  && Model.Step == 2 ))
-                       {
-                            <div class="mb-3">
-                                <label class="form-label">
-                                    <i class="fas fa-user-check me-1"></i>ผู้อนุมัติลำดับถัดไป
-                                </label>
-                                <input asp-for="NextApproverName" class="form-control" readonly />
-                                <input type="hidden" asp-for="NextApproverUserId" />
-                            </div>
-                        }
-                        else
-                        {
-                        <div class="mb-3">
-                            <label class="form-label">
-                                <i class="fas fa-user-check me-1"></i>ผู้อนุมัติลำดับถัดไป
+                                <i class="fas fa-user-check me-1"></i>เธเธนเนเธญเธเธธเธกเธฑเธ•เธดเธฅเธณเธ”เธฑเธเธ–เธฑเธ”เนเธ
                             </label>
                             @{
                                 var isDxFilterMode = ViewData["NextApproverFilterMode"]?.ToString() == "DX";
-                                var isNextApproverLocked = !string.IsNullOrWhiteSpace(Model.ApproverUserId) 
-                                    && string.IsNullOrWhiteSpace(Model.SecondApproverUserId);
                             }
                             @if (isDxFilterMode)
                             {
@@ -852,7 +679,7 @@
                                         data-current-user-id="@currentUserId"
                                         data-is-approve-user="@(isApproveUser ? "true" : "false")"
                                         data-selected-user-id="@ViewData["NextApproverUserId"]">
-                                    <option value="">— Select approver —</option>
+                                    <option value="">โ€” Select approver โ€”</option>
                                     @foreach (var approver in approverUsers)
                                     {
                                         var displayName = !string.IsNullOrWhiteSpace(approver.FullName)
@@ -878,18 +705,17 @@
                                         }
                                     }
                                 </select>
-                                <input type="hidden" name="DxFinalApproverUserId" id="hiddenDxFinalApproverUserId" value="@(!string.IsNullOrWhiteSpace(Model.DxFinalApproverUserId) ? Model.DxFinalApproverUserId : currentUserId)" />
+                                <input type="hidden" name="ThirdApproverUserId" id="hiddenThirdApproverUserId" value="@ViewData["SelectedThirdApproverUserId"]" />
                             }
                             else
                             {
                                 <select asp-for="NextApproverUserId"
                                         class="form-select"
                                         id="approverUserSelect"
-                                        disabled="@isNextApproverLocked"
                                         data-current-user-id="@currentUserId"
                                         data-is-approve-user="@(isApproveUser ? "true" : "false")"
                                         data-selected-user-id="@ViewData["NextApproverUserId"]">
-                                    <option value="">— Select approver —</option>
+                                    <option value="">โ€” Select approver โ€”</option>
                                     @foreach (var approver in approverUsers)
                                     {
                                         var displayName = !string.IsNullOrWhiteSpace(approver.FullName)
@@ -917,41 +743,37 @@
                                 </select>
                             }
                             <div class="form-text">
-                                <i class="fas fa-info-circle me-1"></i>เลือกคนที่ระบบจะส่งงานต่อไปให้ ไม่ได้ผูกกับสถานะของรายการ
+                                <i class="fas fa-info-circle me-1"></i>เน€เธฅเธทเธญเธเธเธเธ—เธตเนเธฃเธฐเธเธเธเธฐเธชเนเธเธเธฒเธเธ•เนเธญเนเธเนเธซเน เนเธกเนเนเธ”เนเธเธนเธเธเธฑเธเธชเธ–เธฒเธเธฐเธเธญเธเธฃเธฒเธขเธเธฒเธฃ
                             </div>
                             <div id="autoRouteAlert" class="alert mt-2 py-2 px-3" style="display:none;">
-                                <i class="fas fa-info-circle me-1"></i>เมื่ออนุมัติ ระบบจะส่งงานไปยัง SM/DM ของฝ่าย DX อัตโนมัติ
+                                <i class="fas fa-info-circle me-1"></i>เน€เธกเธทเนเธญเธญเธเธธเธกเธฑเธ•เธด เธฃเธฐเธเธเธเธฐเธชเนเธเธเธฒเธเนเธเธขเธฑเธ SM/DM เธเธญเธเธเนเธฒเธข DX เธญเธฑเธ•เนเธเธกเธฑเธ•เธด
                             </div>
                             <span asp-validation-for="NextApproverUserId" class="text-danger small"></span>
                         </div>
+                    }
+                    else
+                    {
+                        <input type="hidden" asp-for="NextApproverUserId" />
                     }
 
                     @if (!requesterEditMode && ViewData["NextApproverFilterMode"]?.ToString() == "DX")
                     {
                         var directDxApprovers = ViewData["DirectDxApproverUsers"] as List<ITRepairService.Models.ApplicationUser>
                             ?? new List<ITRepairService.Models.ApplicationUser>();
-
-
-
-
-                        
-                        
                         
                         // Allow editing if:
-                        // 1. Current user is the NextApproverUserId (before second approval)
-                        // 2. OR Current user is the SecondApproverUserId (after second approval, can edit their own selection)
-                        var canEditThirdApprover = (!string.IsNullOrEmpty(Model.NextApproverUserId) 
-                                && Model.NextApproverUserId == ViewData["CurrentUserId"]?.ToString())
-                            || (!string.IsNullOrEmpty(Model.SecondApproverUserId) 
-                                && Model.SecondApproverUserId == ViewData["CurrentUserId"]?.ToString());
+                        // 1. User is IT Support or Admin
+                        // 2. User is the current SecondApprover (the one who is at the approval step)
+                        var canEditThirdApprover = User.IsInRole(ITRepairService.Models.AppRoles.ITSupport) 
+                            || User.IsInRole(ITRepairService.Models.AppRoles.Admin)
+                            || (!string.IsNullOrEmpty(Model.SecondApproverUserId) && Model.SecondApproverUserId == ViewData["CurrentUserId"]?.ToString());
                         
                         <div class="mb-3">
                             <label class="form-label">
-                                <i class="fas fa-user-tie me-1"></i>เลือกผู้อนุมัติ DX
-                            @* <p>Count: @(directDxApprovers?.Count ?? 0)</p> *@
+                                <i class="fas fa-user-tie me-1"></i>เน€เธฅเธทเธญเธเธเธนเนเธญเธเธธเธกเธฑเธ•เธด DX (เธเธฑเนเธเธ•เธญเธเธชเธธเธ”เธ—เนเธฒเธข)
                             </label>
-                                <select class="form-select" id="directNextApproverSelect" name="DxFinalApproverUserId" @(canEditThirdApprover ? "" : "disabled")>
-                                <option value="">— เลือกผู้อนุมัติ DX —</option>
+                            <select class="form-select" id="directNextApproverSelect" @(canEditThirdApprover ? "" : "disabled")>
+                                <option value="">โ€” เน€เธฅเธทเธญเธเธเธนเนเธญเธเธธเธกเธฑเธ•เธด DX โ€”</option>
                                 @foreach (var approver in directDxApprovers)
                                 {
                                     var displayName = !string.IsNullOrWhiteSpace(approver.FullName)
@@ -960,30 +782,15 @@
                                     var userNameForDisplay = !string.IsNullOrWhiteSpace(approver.UserName)
                                         ? approver.UserName
                                         : approver.Email;
-                                    // Determine the selected DX final approver by name (DxFinalApproverName)
-                                    // If DxFinalApproverName is not set yet, default to the current user's display name
-                                    var selectedDxFinalApproverName = !string.IsNullOrWhiteSpace(Model.DxFinalApproverName)
-                                        ? Model.DxFinalApproverName.Trim()
-                                        : currentUserDisplayName.Trim();
-                                    var isSelected = !string.IsNullOrWhiteSpace(selectedDxFinalApproverName) && (
-                                        string.Equals(selectedDxFinalApproverName, approver.FullName?.Trim(), StringComparison.OrdinalIgnoreCase)
-                                        || string.Equals(selectedDxFinalApproverName, approver.UserName?.Trim(), StringComparison.OrdinalIgnoreCase)
-                                        || string.Equals(selectedDxFinalApproverName, approver.Email?.Trim(), StringComparison.OrdinalIgnoreCase)
-                                    );
-
-                                    var approverDepartment = approver.Department?.Trim() ?? string.Empty;
+                                    var isSelected = ViewData["NextApproverUserId"]?.ToString() == approver.Id;
 
                                     @if (isSelected)
                                     {
-                                        // Use DxFinalApproverName from database if available, otherwise use displayName
-                                        var selectedDisplayName = !string.IsNullOrWhiteSpace(Model.DxFinalApproverName)
-                                            ? Model.DxFinalApproverName
-                                            : displayName;
-                                        <option value="@approver.Id" data-department="@approverDepartment" selected>@selectedDisplayName (@userNameForDisplay)</option>
+                                        <option value="@approver.Id" selected>@displayName (@userNameForDisplay)</option>
                                     }
                                     else
                                     {
-                                        <option value="@approver.Id" data-department="@approverDepartment">@displayName (@userNameForDisplay)</option>
+                                        <option value="@approver.Id">@displayName (@userNameForDisplay)</option>
                                     }
                                 }
                             </select>
@@ -991,11 +798,11 @@
                                 <i class="fas fa-info-circle me-1"></i>
                                 @if (canEditThirdApprover)
                                 {
-                                    <span>เลือกผู้อนุมัติ DX สำหรับขั้นตอนสุดท้าย</span>
+                                    <span>เน€เธฅเธทเธญเธเธเธนเนเธญเธเธธเธกเธฑเธ•เธด DX เธชเธณเธซเธฃเธฑเธเธเธฑเนเธเธ•เธญเธเธชเธธเธ”เธ—เนเธฒเธข</span>
                                 }
                                 else
                                 {
-                                    <span>เฉพาะผู้ใช้ที่มีสิทธิ์ IT Support หรือผู้ที่อยู่ในขั้นตอนการอนุมัติเท่านั้นที่สามารถแก้ไขได้</span>
+                                    <span>เน€เธเธเธฒเธฐเธเธนเนเนเธเนเธ—เธตเนเธกเธตเธชเธดเธ—เธเธดเน IT Support เธซเธฃเธทเธญเธเธนเนเธ—เธตเนเธญเธขเธนเนเนเธเธเธฑเนเธเธ•เธญเธเธเธฒเธฃเธญเธเธธเธกเธฑเธ•เธดเน€เธ—เนเธฒเธเธฑเนเธเธ—เธตเนเธชเธฒเธกเธฒเธฃเธ–เนเธเนเนเธเนเธ”เน</span>
                                 }
                             </div>
                         </div>
@@ -1009,15 +816,15 @@
                     @if (!string.IsNullOrWhiteSpace(Model.NextApproverName))
                     {
                         <div class="alert alert-info mt-3">
-                            <h6 class="alert-heading"><i class="fas fa-forward me-2"></i>ข้อมูลผู้อนุมัติลำดับถัดไป</h6>
+                            <h6 class="alert-heading"><i class="fas fa-forward me-2"></i>เธเนเธญเธกเธนเธฅเธเธนเนเธญเธเธธเธกเธฑเธ•เธดเธฅเธณเธ”เธฑเธเธ–เธฑเธ”เนเธ</h6>
                             <hr />
                             <div class="row">
                                 <div class="col-md-6 mb-2">
-                                    <strong><i class="fas fa-building me-1"></i>ฝ่ายที่อนุมัติลำดับถัดไป:</strong><br />
+                                    <strong><i class="fas fa-building me-1"></i>เธเนเธฒเธขเธ—เธตเนเธญเธเธธเธกเธฑเธ•เธดเธฅเธณเธ”เธฑเธเธ–เธฑเธ”เนเธ:</strong><br />
                                     @Model.NextApproverDepartment
                                 </div>
                                 <div class="col-md-6 mb-2">
-                                    <strong><i class="fas fa-user me-1"></i>ผู้อนุมัติลำดับถัดไป:</strong><br />
+                                    <strong><i class="fas fa-user me-1"></i>เธเธนเนเธญเธเธธเธกเธฑเธ•เธดเธฅเธณเธ”เธฑเธเธ–เธฑเธ”เนเธ:</strong><br />
                                     @Model.NextApproverName
                                 </div>
                             </div>
@@ -1041,7 +848,7 @@
                             {
                                 <div class="alert alert-info d-flex align-items-center gap-2">
                                     <i class="fas fa-lock fa-lg"></i>
-                                    <span>เฉพาะผู้ใช้ที่มีสิทธิ์ <strong>Approve</strong> หรือผู้ที่ได้รับมอบหมายงานเท่านั้นที่แก้ไขสถานะได้</span>
+                                    <span>เน€เธเธเธฒเธฐเธเธนเนเนเธเนเธ—เธตเนเธกเธตเธชเธดเธ—เธเธดเน <strong>Approve</strong> เธซเธฃเธทเธญเธเธนเนเธ—เธตเนเนเธ”เนเธฃเธฑเธเธกเธญเธเธซเธกเธฒเธขเธเธฒเธเน€เธ—เนเธฒเธเธฑเนเธเธ—เธตเนเนเธเนเนเธเธชเธ–เธฒเธเธฐเนเธ”เน</span>
                                 </div>
                             }
                         }
@@ -1052,7 +859,7 @@
                     {
                         <div class="mb-4">
                             <label class="form-label">
-                                <i class="fas fa-gavel me-1"></i>การอนุมัติ
+                                <i class="fas fa-gavel me-1"></i>เธเธฒเธฃเธญเธเธธเธกเธฑเธ•เธด
                             </label>
                             <input type="hidden" name="Status" value="@flowPrimaryStatus" id="statusHidden" />
                             <div class="d-flex align-items-center gap-3 flex-wrap mb-2">
@@ -1075,7 +882,7 @@
                     {
                         <div class="mb-4">
                             <label class="form-label">
-                                <i class="fas fa-gavel me-1"></i>การอนุมัติ
+                                <i class="fas fa-gavel me-1"></i>เธเธฒเธฃเธญเธเธธเธกเธฑเธ•เธด
                             </label>
                             <input type="hidden" name="Status" value="@flowPrimaryStatus" id="statusHidden" />
                             <div class="d-flex align-items-center gap-3 flex-wrap mb-2">
@@ -1095,10 +902,10 @@
                         {
                             <div class="mb-3" id="itAssignContainer">
                                 <label asp-for="AssignedItUserId" class="form-label">
-                                    <i class="fas fa-laptop-code me-1"></i>ผู้รับผิดชอบ (IT)
+                                    <i class="fas fa-laptop-code me-1"></i>เธเธนเนเธฃเธฑเธเธเธดเธ”เธเธญเธ (IT)
                                 </label>
                                 <select asp-for="AssignedItUserId" class="form-select" id="itAssignSelect">
-                                    <option value="">— Select IT assignee —</option>
+                                    <option value="">โ€” Select IT assignee โ€”</option>
                                     @foreach (var itUser in itSupportUsers)
                                     {
                                         var displayName = !string.IsNullOrWhiteSpace(itUser.FullName)
@@ -1125,12 +932,12 @@
 
                         <div class="mb-4 p-3 bg-danger bg-opacity-10 border border-danger rounded-3" id="rejectRemarkContainerDx" style="display: none;">
                             <label for="rejectRemarkDx" class="form-label fw-semibold text-danger">
-                                <i class="fas fa-exclamation-circle me-1"></i>หมายเหตุการตีกลับ
+                                <i class="fas fa-exclamation-circle me-1"></i>เธซเธกเธฒเธขเน€เธซเธ•เธธเธเธฒเธฃเธ•เธตเธเธฅเธฑเธ
                             </label>
-                            <textarea id="rejectRemarkDx" name="rejectRemark" class="form-control border-danger" rows="3" maxlength="250" placeholder="ระบุเหตุผลที่ตีกลับ...">@ViewData["RejectRemark"]</textarea>
+                            <textarea id="rejectRemarkDx" name="rejectRemark" class="form-control border-danger" rows="3" maxlength="250" placeholder="เธฃเธฐเธเธธเน€เธซเธ•เธธเธเธฅเธ—เธตเนเธ•เธตเธเธฅเธฑเธ...">@ViewData["RejectRemark"]</textarea>
                             <span class="text-danger small" data-valmsg-for="rejectRemark" data-valmsg-replace="true"></span>
                             <small class="text-muted d-block mt-1">
-                                <i class="fas fa-info-circle me-1"></i>สถานะจะยังคงเป็น <strong>Rejected</strong> จนกว่าผู้แจ้งจะแก้ไขและบันทึกใหม่
+                                <i class="fas fa-info-circle me-1"></i>เธชเธ–เธฒเธเธฐเธเธฐเธขเธฑเธเธเธเน€เธเนเธ <strong>Rejected</strong> เธเธเธเธงเนเธฒเธเธนเนเนเธเนเธเธเธฐเนเธเนเนเธเนเธฅเธฐเธเธฑเธเธ—เธถเธเนเธซเธกเน
                             </small>
                         </div>
                     }
@@ -1138,7 +945,7 @@
                     {
                         <div class="mb-3">
                             <label asp-for="Status" class="form-label">
-                                <i class="fas fa-tag me-1"></i>สถานะ
+                                <i class="fas fa-tag me-1"></i>เธชเธ–เธฒเธเธฐ
                             </label>
                             @{
                                 var canSeeComplete = User.IsInRole(ITRepairService.Models.AppRoles.ITSupport)
@@ -1184,7 +991,7 @@
                                     {
                                         <div class="input-group mt-2 status-step-row existing-step-row">
                                             <select name="approvalStatuses" class="form-select status-step-select existing-step-select" disabled>
-                                                <option value="">— Select next status step —</option>
+                                                <option value="">โ€” Select next status step โ€”</option>
                                                 @foreach (ITRepairService.Models.TicketStatus statusVal in Enum.GetValues(typeof(ITRepairService.Models.TicketStatus)))
                                                 {
                                                     if (statusVal == ITRepairService.Models.TicketStatus.Open) { continue; }
@@ -1223,10 +1030,10 @@
                         {
                             <div class="mb-3" id="itAssignContainer">
                                 <label asp-for="AssignedItUserId" class="form-label">
-                                    <i class="fas fa-laptop-code me-1"></i>ผู้รับผิดชอบ (IT)
+                                    <i class="fas fa-laptop-code me-1"></i>เธเธนเนเธฃเธฑเธเธเธดเธ”เธเธญเธ (IT)
                                 </label>
                                 <select asp-for="AssignedItUserId" class="form-select" id="itAssignSelect">
-                                    <option value="">— Select IT assignee —</option>
+                                    <option value="">โ€” Select IT assignee โ€”</option>
                                     @foreach (var itUser in itSupportUsers)
                                     {
                                         var displayName = !string.IsNullOrWhiteSpace(itUser.FullName)
@@ -1257,12 +1064,12 @@
 
                         <div class="mb-4 p-3 bg-danger bg-opacity-10 border border-danger rounded-3" id="rejectRemarkContainer" style="display: @(flowPrimaryStatus == ITRepairService.Models.TicketStatus.Rejected ? "block" : "none")">
                             <label for="rejectRemark" class="form-label fw-semibold text-danger">
-                                <i class="fas fa-exclamation-circle me-1"></i>หมายเหตุการตีกลับ
+                                <i class="fas fa-exclamation-circle me-1"></i>เธซเธกเธฒเธขเน€เธซเธ•เธธเธเธฒเธฃเธ•เธตเธเธฅเธฑเธ
                             </label>
-                            <textarea id="rejectRemark" name="rejectRemark" class="form-control border-danger" rows="3" maxlength="250" placeholder="ระบุเหตุผลที่ตีกลับ...">@ViewData["RejectRemark"]</textarea>
+                            <textarea id="rejectRemark" name="rejectRemark" class="form-control border-danger" rows="3" maxlength="250" placeholder="เธฃเธฐเธเธธเน€เธซเธ•เธธเธเธฅเธ—เธตเนเธ•เธตเธเธฅเธฑเธ...">@ViewData["RejectRemark"]</textarea>
                             <span class="text-danger small" data-valmsg-for="rejectRemark" data-valmsg-replace="true"></span>
                             <small class="text-muted d-block mt-1">
-                                <i class="fas fa-info-circle me-1"></i>สถานะจะยังคงเป็น <strong>Rejected</strong> จนกว่าผู้แจ้งจะแก้ไขและบันทึกใหม่
+                                <i class="fas fa-info-circle me-1"></i>เธชเธ–เธฒเธเธฐเธเธฐเธขเธฑเธเธเธเน€เธเนเธ <strong>Rejected</strong> เธเธเธเธงเนเธฒเธเธนเนเนเธเนเธเธเธฐเนเธเนเนเธเนเธฅเธฐเธเธฑเธเธ—เธถเธเนเธซเธกเน
                             </small>
                         </div>
                     }
@@ -1274,7 +1081,7 @@
                             || canMarkCompleteByAssignee;
                         <div class="mb-4">
                             <label asp-for="Status" class="form-label">
-                                <i class="fas fa-tag me-1"></i>สถานะ
+                                <i class="fas fa-tag me-1"></i>เธชเธ–เธฒเธเธฐ
                             </label>
                             <div class="d-flex align-items-center gap-3 flex-wrap">
                                 <span class="badge badge-status @GetStatusBadgeClass(flowPrimaryStatus)" id="statusBadge">
@@ -1311,13 +1118,13 @@
                         <div class="alert-popup-content">
                             <div class="alert-popup-header">
                                 <i class="fas fa-exclamation-circle text-warning fa-3x mb-3"></i>
-                                <h5 class="alert-popup-title">แจ้งเตือน</h5>
+                                <h5 class="alert-popup-title">เนเธเนเธเน€เธ•เธทเธญเธ</h5>
                             </div>
                             <div class="alert-popup-body">
                                 <p id="alertPopupMessage"></p>
                             </div>
                             <div class="alert-popup-footer">
-                                <button type="button" class="btn btn-primary" id="alertPopupClose">ตกลง</button>
+                                <button type="button" class="btn btn-primary" id="alertPopupClose">เธ•เธเธฅเธ</button>
                             </div>
                         </div>
                     </div>
@@ -1343,9 +1150,6 @@
 
     <script>
         (function () {
-            // Track if user clicked Approve button
-            let hasClickedApprove = false;
-            
             // DOM Elements
             const departmentSelect = document.getElementById('approverDepartmentSelect');
             const approverSelect = document.getElementById('approverUserSelect');
@@ -1396,8 +1200,8 @@
             // Update status badge visual
             function updateStatusBadge(statusValue) {
                 if (!statusBadge || !statusBadgeText) return;
-                const displayText = statusValue === 'Approved' ? 'Approved (ผู้อนุมัติได้อนุมัติรายการ)' :
-                                    statusValue === 'Rejected' ? 'Rejected (ผู้อนุมัติไม่อนุมัติรายการ)' :
+                const displayText = statusValue === 'Approved' ? 'Approved (เธเธนเนเธญเธเธธเธกเธฑเธ•เธดเนเธ”เนเธญเธเธธเธกเธฑเธ•เธดเธฃเธฒเธขเธเธฒเธฃ)' :
+                                    statusValue === 'Rejected' ? 'Rejected (เธเธนเนเธญเธเธธเธกเธฑเธ•เธดเนเธกเนเธญเธเธธเธกเธฑเธ•เธดเธฃเธฒเธขเธเธฒเธฃ)' :
                                     statusValue;
                 statusBadgeText.textContent = displayText;
                 // Update badge class
@@ -1534,7 +1338,7 @@
                     const nextApproverSelect = isDxMode ? directNextApproverSelectEl : approverSelect;
                     
                     if (!nextApproverSelect || !nextApproverSelect.value) {
-                        showAlertModal('กรุณาเลือกผู้อนุมัติลำดับถัดไปก่อนอนุมัติ');
+                        showAlertModal('เธเธฃเธธเธ“เธฒเน€เธฅเธทเธญเธเธเธนเนเธญเธเธธเธกเธฑเธ•เธดเธฅเธณเธ”เธฑเธเธ–เธฑเธ”เนเธเธเนเธญเธเธญเธเธธเธกเธฑเธ•เธด');
                         hasClickedApprove = false; // Reset flag
                         return;
                     }
@@ -1546,43 +1350,24 @@
                     // - OR if NextApproverUserId and NextApproverName are already set (not empty)
                     const nextApproverNameInput = document.querySelector('input[name="NextApproverName"]');
                     const hasNextApproverName = nextApproverNameInput && nextApproverNameInput.value;
-                    const isDiffApproverStep1 = @(isDifferentApproverStep1 ? "true" : "false");
-                    const skipValidation = isDriveAccess && (!hasSecondApprover || (hasNextApproverName && nextApproverSelect.value))
-                        || isDiffApproverStep1;
+                    const skipValidation = isDriveAccess && (!hasSecondApprover || (hasNextApproverName && nextApproverSelect.value));
                     
                     if (!skipValidation) {
                         // Check if current user is the same as the selected approver
                         const selectedApproverId = nextApproverSelect.value;
                         
                         if (currentUserId && selectedApproverId && currentUserId === selectedApproverId) {
-                            showAlertModal('กรุณาเปลี่ยนผู้อนุมัติลำดับถัดไปใหม่');
+                            showAlertModal('เธเธฃเธธเธ“เธฒเน€เธเธฅเธตเนเธขเธเธเธนเนเธญเธเธธเธกเธฑเธ•เธดเธฅเธณเธ”เธฑเธเธ–เธฑเธ”เนเธเนเธซเธกเน');
                             return;
                         }
 
-                        // Check if Next Approver Department and Next Approver User are the same as current user
-                        if (!isDxMode && departmentSelect && nextApproverSelect) {
-                            const selectedDepartment = departmentSelect.value;
-                            
-                            if (currentUserDepartment && selectedDepartment && 
-                                currentUserId && selectedApproverId &&
-                                currentUserDepartment.toLowerCase() === selectedDepartment.toLowerCase() &&
-                                currentUserId === selectedApproverId) {
-                                showAlertPopup('⚠️ ไม่สามารถบันทึกรายการได้ กรุณาเลือกฝ่ายที่อนุมัติลำดับถัดไป และ ผู้อนุมัติลำดับถัดไปใหม่');
-                                return;
-                            }
-                        }
-
                         // Check if current user's department matches the selected approver department (only in non-DX mode)
-                        // Additional conditions: not IT department, and CurrentUserId != DxFinalApproverUserId
                         if (!isDxMode && departmentSelect) {
                             const selectedDepartment = departmentSelect.value;
-                            const dxFinalApproverUserId = '@(Model.DxFinalApproverUserId?.ToString() ?? string.Empty)';
                             
                             if (currentUserDepartment && selectedDepartment && 
-                                currentUserDepartment.toLowerCase() === selectedDepartment.toLowerCase() &&
-                                currentUserDepartment.trim().toLowerCase() !== 'it' &&
-                                currentUserId !== dxFinalApproverUserId) {
-                                showAlertPopup('⚠️ ไม่สามารถบันทึกรายการได้ กรุณาเลือกฝ่ายที่อนุมัติลำดับถัดไป และ ผู้อนุมัติลำดับถัดไปใหม่');
+                                currentUserDepartment.toLowerCase() === selectedDepartment.toLowerCase()) {
+                                showAlertPopup('โ ๏ธ เนเธกเนเธชเธฒเธกเธฒเธฃเธ–เธญเธเธธเธกเธฑเธ•เธดเธฃเธฒเธขเธเธฒเธฃเธเธตเนเนเธ”เน เน€เธเธทเนเธญเธเธเธฒเธเธเธธเธ“เธญเธขเธนเนเนเธเธเนเธฒเธขเน€เธ”เธตเธขเธงเธเธฑเธเธเธนเนเธญเธเธธเธกเธฑเธ•เธดเธฅเธณเธ”เธฑเธเธ–เธฑเธ”เนเธ\n\nเธเธฃเธธเธ“เธฒเน€เธเธฅเธตเนเธขเธ:\n1. เธเนเธญเธ "เธเนเธฒเธขเธ—เธตเนเธญเธเธธเธกเธฑเธ•เธดเธฅเธณเธ”เธฑเธเธ–เธฑเธ”เนเธ"\n2. เธเนเธญเธ "เธเธนเนเธญเธเธธเธกเธฑเธ•เธดเธฅเธณเธ”เธฑเธเธ–เธฑเธ”เนเธ"\n\nเนเธซเนเน€เธเนเธเธเนเธฒเธขเนเธฅเธฐเธเธนเนเธญเธเธธเธกเธฑเธ•เธดเธ—เธตเนเธ•เนเธฒเธเธเธฒเธเธเนเธฒเธขเธเธญเธเธเธธเธ“');
                                 return;
                             }
                         }
@@ -1605,7 +1390,7 @@
                     if (isDriveAccess && hasSecondApprover) {
                         const autoRouteAlert = document.getElementById('autoRouteAlert');
                         if (autoRouteAlert) {
-                            autoRouteAlert.innerHTML = '<i class="fas fa-info-circle me-1"></i>เมื่ออนุมัติ ระบบจะส่งงานไปยัง SM/DM ของฝ่าย DX อัตโนมัติ';
+                            autoRouteAlert.innerHTML = '<i class="fas fa-info-circle me-1"></i>เน€เธกเธทเนเธญเธญเธเธธเธกเธฑเธ•เธด เธฃเธฐเธเธเธเธฐเธชเนเธเธเธฒเธเนเธเธขเธฑเธ SM/DM เธเธญเธเธเนเธฒเธข DX เธญเธฑเธ•เนเธเธกเธฑเธ•เธด';
                             autoRouteAlert.style.display = 'block';
                         }
                     } else {
@@ -1621,7 +1406,7 @@
                     }
                     
                     // Show success message
-                    showAlertPopup('✅ คุณได้อนุมัติรายการนี้แล้ว\n\nกรุณากดปุ่ม Save เพื่อบันทึกข้อมูล');
+                    showAlertPopup('โ… เธเธธเธ“เนเธ”เนเธญเธเธธเธกเธฑเธ•เธดเธฃเธฒเธขเธเธฒเธฃเธเธตเนเนเธฅเนเธง\n\nเธเธฃเธธเธ“เธฒเธเธ”เธเธธเนเธก Save เน€เธเธทเนเธญเธเธฑเธเธ—เธถเธเธเนเธญเธกเธนเธฅ');
                 });
             }
 
@@ -1631,7 +1416,7 @@
                     setApprovalStatus('Rejected', true);
                     
                     // Show alert to inform user
-                    showAlertPopup('กรุณาระบุหมายเหตุการตีกลับ และกด Save เพื่อบันทึก');
+                    showAlertPopup('เธเธฃเธธเธ“เธฒเธฃเธฐเธเธธเธซเธกเธฒเธขเน€เธซเธ•เธธเธเธฒเธฃเธ•เธตเธเธฅเธฑเธ เนเธฅเธฐเธเธ” Save เน€เธเธทเนเธญเธเธฑเธเธ—เธถเธ');
                 });
             }
 
@@ -1662,7 +1447,7 @@
                         approverSelect.innerHTML = '';
                         const placeholder = document.createElement('option');
                         placeholder.value = '';
-                        placeholder.textContent = '— Select approver —';
+                        placeholder.textContent = 'โ€” Select approver โ€”';
                         approverSelect.appendChild(placeholder);
 
                         let foundSelected = false;
@@ -1699,15 +1484,6 @@
 
                     // When department changes, filter the approver list
                     departmentSelect.addEventListener('change', renderApproverOptions);
-
-                    // When approver changes, update the department to match the selected approver's department
-                    approverSelect.addEventListener('change', function() {
-                        const selectedOption = this.options[this.selectedIndex];
-                        const selectedDepartment = selectedOption ? selectedOption.getAttribute('data-department') : '';
-                        if (selectedDepartment && departmentSelect) {
-                            departmentSelect.value = selectedDepartment;
-                        }
-                    });
 
                     // Initial render
                     renderApproverOptions();
@@ -1748,76 +1524,46 @@
 
             // Save button loading state with validation
             const requesterEditModeJs = @(requesterEditMode ? "true" : "false");
-            const isDifferentApproverStep1Js = @(isDifferentApproverStep1 ? "true" : "false");
+            let hasClickedApprove = false; // Track if user clicked Approve button
             
             if (saveBtn && editForm) {
-                // Add click handler to Save button to validate BEFORE form submission
-                saveBtn.addEventListener('click', function(e) {
-                    // Validate approver department and user before saving (only for non-DX mode)
-                    const isDxMode = directNextApproverSelectEl !== null;
-                    
-                    if (!isDxMode && !requesterEditModeJs && !isDifferentApproverStep1Js) {
-                        const currentUserDepartment = '@(ViewData["CurrentUserDepartment"]?.ToString() ?? string.Empty)';
-                        const currentUserId = '@(ViewData["CurrentUserId"]?.ToString() ?? string.Empty)';
-                        const selectedDepartment = departmentSelect ? departmentSelect.value : '';
-                        const selectedApprover = approverSelect ? approverSelect.value : '';
-                        
-                        console.log('DEBUG Save Button Click Validation:', {
-                            currentUserId: currentUserId,
-                            selectedApprover: selectedApprover,
-                            isSameUser: currentUserId && selectedApprover && currentUserId === selectedApprover
-                        });
-                        
-                        // Only validate if an approver is selected
-                        if (selectedApprover && currentUserId && !isDxMode) {
-                           // Check if the selected next approver is the same as current user
-                          //  This prevents a user from approving and routing to themselves
-                            if (currentUserId === selectedApprover) {
-                                e.preventDefault();
-                                console.log('DEBUG: Blocked - Same user as next approver');
-                                showAlertPopup('⚠️ ไม่สามารถบันทึกรายการได้ กรูณาเปลี่ยน ฝ่ายที่อนุมัติลำดับถัดไปและผู้อนุมัติลำดับถัดไปใหม่');
-                                return false;
-                            }
-                        }
-                    }
-                });
-                
-                // Also add form submit handler as backup
                 editForm.addEventListener('submit', function(e) {
+                    // Validate approver department before saving (only for non-DX mode)
                     const isDxMode = directNextApproverSelectEl !== null;
                     
-                    if (!isDxMode && !requesterEditModeJs && !isDifferentApproverStep1Js) {
-                        const currentUserId = '@(ViewData["CurrentUserId"]?.ToString() ?? string.Empty)';
-                        const selectedApprover = approverSelect ? approverSelect.value : '';
+                    if (!isDxMode && departmentSelect && approverSelect && !requesterEditModeJs) {
+                        const currentUserDepartment = '@(ViewData["CurrentUserDepartment"]?.ToString() ?? string.Empty)';
+                        const selectedDepartment = departmentSelect.value;
+                        const selectedApprover = approverSelect.value;
                         
-                        // Double-check on form submit
-                        if (selectedApprover && currentUserId && currentUserId === selectedApprover) {
+                        // Only validate if an approver is selected AND user hasn't clicked Approve
+                        if (selectedApprover && !hasClickedApprove && currentUserDepartment && selectedDepartment && 
+                            currentUserDepartment.toLowerCase() === selectedDepartment.toLowerCase()) {
                             e.preventDefault();
-                            e.stopPropagation();
-                            console.log('DEBUG: Blocked on submit - Same user');
-                            showAlertPopup('⚠️ ไม่สามารถบันทึกรายการได้ เนื่องจากผู้อนุมัติลำดับถัดไป');
+                            showAlertPopup('โ ๏ธ เนเธกเนเธชเธฒเธกเธฒเธฃเธ–เธเธฑเธเธ—เธถเธเธเนเธญเธกเธนเธฅเนเธ”เน เน€เธเธทเนเธญเธเธเธฒเธเธเธนเนเธญเธเธธเธกเธฑเธ•เธดเธฅเธณเธ”เธฑเธเธ–เธฑเธ”เนเธเธญเธขเธนเนเนเธเธเนเธฒเธขเน€เธ”เธตเธขเธงเธเธฑเธเธเธธเธ“\n\nเธเธฃเธธเธ“เธฒเน€เธเธฅเธตเนเธขเธ:\n1. เธเนเธญเธ "เธเนเธฒเธขเธ—เธตเนเธญเธเธธเธกเธฑเธ•เธดเธฅเธณเธ”เธฑเธเธ–เธฑเธ”เนเธ"\n2. เธเนเธญเธ "เธเธนเนเธญเธเธธเธกเธฑเธ•เธดเธฅเธณเธ”เธฑเธเธ–เธฑเธ”เนเธ"\n\nเนเธซเนเน€เธเนเธเธเนเธฒเธขเนเธฅเธฐเธเธนเนเธญเธเธธเธกเธฑเธ•เธดเธ—เธตเนเธ•เนเธฒเธเธเธฒเธเธเนเธฒเธขเธเธญเธเธเธธเธ“');
                             return false;
                         }
                     }
+                    
+                    // Reset the flag after validation
+                    hasClickedApprove = false;
                     
                     saveBtn.disabled = true;
                     saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status"></span>Saving...';
                 });
             }
 
-            // Sync directNextApproverSelect to hiddenDxFinalApproverUserId field
-            // Note: NextApproverDepartment is NOT synced with the DX approver selection
-            // They are independent fields - the department stays as "DX" regardless of which DX approver is selected
-            const hiddenDxFinalApproverUserId = document.getElementById('hiddenDxFinalApproverUserId');
+            // Sync directNextApproverSelect to hiddenThirdApproverUserId field
+            const hiddenThirdApproverUserId = document.getElementById('hiddenThirdApproverUserId');
             
-            if (directNextApproverSelectEl && hiddenDxFinalApproverUserId) {
+            if (directNextApproverSelectEl && hiddenThirdApproverUserId) {
                 // Update hidden field when dropdown changes
                 directNextApproverSelectEl.addEventListener('change', function() {
-                    hiddenDxFinalApproverUserId.value = this.value;
+                    hiddenThirdApproverUserId.value = this.value;
                 });
                 
                 // Initial sync
-                hiddenDxFinalApproverUserId.value = directNextApproverSelectEl.value;
+                hiddenThirdApproverUserId.value = directNextApproverSelectEl.value;
             }
 
             // Initial toggle

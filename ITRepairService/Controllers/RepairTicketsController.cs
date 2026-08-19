@@ -35,6 +35,11 @@ public class RepairTicketsController(AppDbContext context, UserManager<Applicati
 
         var isAdmin = User.IsInRole(AppRoles.Admin);
         var isApprove = User.IsInRole(AppRoles.Approve);
+        
+        // DEBUG: Log user info and ticket count
+        Console.WriteLine($"DEBUG Index: User={User.Identity?.Name}, IsAdmin={isAdmin}, IsApprove={isApprove}, UserId={currentUserId}");
+        var totalTicketsBeforeFilter = await _context.RepairTickets.CountAsync();
+        Console.WriteLine($"DEBUG Index: Total tickets in DB before filter: {totalTicketsBeforeFilter}");
 
         if (!isAdmin)
         {
@@ -54,6 +59,7 @@ public class RepairTicketsController(AppDbContext context, UserManager<Applicati
                     || (!string.IsNullOrWhiteSpace(currentUserFullName) && ticket.ThirdApproverName == currentUserFullName)
                     || (!string.IsNullOrWhiteSpace(currentUserUserName) && ticket.ThirdApproverName == currentUserUserName)
                     || (!string.IsNullOrWhiteSpace(currentUserEmail) && ticket.ThirdApproverName == currentUserEmail)
+
                     || (!string.IsNullOrWhiteSpace(currentUserId) && ticket.NextApproverUserId == currentUserId)
                     || (!string.IsNullOrWhiteSpace(currentUserFullName) && ticket.NextApproverName == currentUserFullName)
                     || (!string.IsNullOrWhiteSpace(currentUserUserName) && ticket.NextApproverName == currentUserUserName)
@@ -62,6 +68,7 @@ public class RepairTicketsController(AppDbContext context, UserManager<Applicati
                     || (!string.IsNullOrWhiteSpace(currentUserFullName) && ticket.AssignedItName == currentUserFullName)
                     || (!string.IsNullOrWhiteSpace(currentUserUserName) && ticket.AssignedItName == currentUserUserName)
                     || (!string.IsNullOrWhiteSpace(currentUserEmail) && ticket.AssignedItName == currentUserEmail)
+
                     || (!string.IsNullOrWhiteSpace(currentUserId) && ticket.RequesterUserId == currentUserId)
                     || (string.IsNullOrWhiteSpace(ticket.RequesterUserId)
                         && (
@@ -76,11 +83,7 @@ public class RepairTicketsController(AppDbContext context, UserManager<Applicati
             else
             {
                 query = query.Where(ticket =>
-                    (!string.IsNullOrWhiteSpace(currentUserId) && ticket.AssignedItUserId == currentUserId)
-                    || (!string.IsNullOrWhiteSpace(currentUserFullName) && ticket.AssignedItName == currentUserFullName)
-                    || (!string.IsNullOrWhiteSpace(currentUserUserName) && ticket.AssignedItName == currentUserUserName)
-                    || (!string.IsNullOrWhiteSpace(currentUserEmail) && ticket.AssignedItName == currentUserEmail)
-                    || (!string.IsNullOrWhiteSpace(currentUserId) && ticket.RequesterUserId == currentUserId)
+                    (!string.IsNullOrWhiteSpace(currentUserId) && ticket.RequesterUserId == currentUserId)
                     || (string.IsNullOrWhiteSpace(ticket.RequesterUserId)
                         && (
                             (!string.IsNullOrWhiteSpace(currentUserFullName) && ticket.RequesterName == currentUserFullName)
@@ -228,6 +231,73 @@ public class RepairTicketsController(AppDbContext context, UserManager<Applicati
     {
         var model = await BuildPerformanceReportModelAsync(fromDate, toDate, itName);
         return View(model);
+    }
+
+    [Authorize(Roles = AppRoles.Admin + "," + AppRoles.ITSupport)]
+    public async Task<IActionResult> AssignedToMe(string? status, string? sort, string? dir)
+    {
+        var currentUser = await _userManager.GetUserAsync(User);
+        var currentUserId = currentUser?.Id;
+
+        if (string.IsNullOrWhiteSpace(currentUserId))
+        {
+            return Forbid();
+        }
+
+        var query = _context.RepairTickets
+            .AsNoTracking()
+            .Where(ticket => ticket.AssignedItUserId == currentUserId)
+            .AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(status) && Enum.TryParse<TicketStatus>(status, true, out var parsedStatus))
+        {
+            query = query.Where(ticket => ticket.Status == parsedStatus);
+            ViewData["CurrentStatus"] = parsedStatus.ToString();
+        }
+
+        var currentSort = string.IsNullOrWhiteSpace(sort) ? "created" : sort.Trim().ToLowerInvariant();
+        var currentDir = string.Equals(dir, "asc", StringComparison.OrdinalIgnoreCase) ? "asc" : "desc";
+
+        query = (currentSort, currentDir) switch
+        {
+            ("requester", "asc") => query.OrderBy(ticket => ticket.RequesterName).ThenByDescending(ticket => ticket.CreatedAt),
+            ("requester", "desc") => query.OrderByDescending(ticket => ticket.RequesterName).ThenByDescending(ticket => ticket.CreatedAt),
+            ("priority", "asc") => query.OrderBy(ticket => ticket.Priority).ThenByDescending(ticket => ticket.CreatedAt),
+            ("priority", "desc") => query.OrderByDescending(ticket => ticket.Priority).ThenByDescending(ticket => ticket.CreatedAt),
+            ("created", "asc") => query.OrderBy(ticket => ticket.CreatedAt),
+            _ => query.OrderByDescending(ticket => ticket.CreatedAt)
+        };
+
+        ViewData["CurrentSort"] = currentSort;
+        ViewData["CurrentDir"] = currentDir;
+
+        var tickets = await query.ToListAsync();
+
+        var latestStatusUpdatedBy = new Dictionary<int, string>();
+        if (tickets.Count > 0)
+        {
+            var ticketIds = tickets.Select(ticket => ticket.Id).ToList();
+            var timeline = await _context.RepairTicketStatusHistories
+                .AsNoTracking()
+                .Where(history => ticketIds.Contains(history.RepairTicketId))
+                .OrderByDescending(history => history.ChangedAt)
+                .ThenByDescending(history => history.Id)
+                .Select(history => new { history.RepairTicketId, history.ChangedByName })
+                .ToListAsync();
+
+            foreach (var item in timeline)
+            {
+                if (!latestStatusUpdatedBy.ContainsKey(item.RepairTicketId)
+                    && !string.IsNullOrWhiteSpace(item.ChangedByName))
+                {
+                    latestStatusUpdatedBy[item.RepairTicketId] = item.ChangedByName.Trim();
+                }
+            }
+        }
+
+        ViewData["LatestStatusUpdatedBy"] = latestStatusUpdatedBy;
+
+        return View("Index", tickets);
     }
 
     [Authorize(Roles = AppRoles.Admin + "," + AppRoles.ITSupport)]
@@ -448,6 +518,7 @@ public class RepairTicketsController(AppDbContext context, UserManager<Applicati
             RequesterName = ticket.RequesterName,
             Department = ticket.Department,
             DeviceName = ticket.DeviceName,
+            DriveAccessDepartment = ticket.DriveAccessDepartment ?? string.Empty,
             IssueDescription = ticket.IssueDescription,
             RepairType = ticket.RepairType,
             Priority = ticket.Priority,
@@ -558,6 +629,7 @@ public class RepairTicketsController(AppDbContext context, UserManager<Applicati
                     RequesterName = ticket.RequesterName,
                     Department = ticket.Department,
                     DeviceName = ticket.DeviceName,
+                    DriveAccessDepartment = ticket.DriveAccessDepartment ?? string.Empty,
                     IssueDescription = ticket.IssueDescription,
                     RepairType = ticket.RepairType,
                     Priority = ticket.Priority,
@@ -678,6 +750,7 @@ public class RepairTicketsController(AppDbContext context, UserManager<Applicati
                 ? currentUser.FullName
                 : (currentUser?.UserName ?? User.Identity?.Name ?? string.Empty),
             Department = currentUser?.Department ?? string.Empty,
+            ApproverDepartment = currentUser?.Department ?? string.Empty,
             Status = TicketStatus.Open
         };
 
@@ -711,7 +784,8 @@ public class RepairTicketsController(AppDbContext context, UserManager<Applicati
             : (currentUser?.UserName ?? User.Identity?.Name ?? string.Empty);
 
         ticket.Department = ticket.Department?.Trim() ?? string.Empty;
-        ticket.ApproverDepartment = ticket.ApproverDepartment?.Trim() ?? string.Empty;
+        // ApproverDepartment is readonly in Create form - always set from current user's department
+        ticket.ApproverDepartment = currentUser?.Department?.Trim() ?? ticket.ApproverDepartment?.Trim() ?? string.Empty;
         ticket.DriveAccessDepartment = ticket.DriveAccessDepartment?.Trim() ?? string.Empty;
         ticket.IssueDescription = ticket.IssueDescription?.Trim() ?? string.Empty;
 
@@ -776,6 +850,12 @@ public class RepairTicketsController(AppDbContext context, UserManager<Applicati
 
         if (ticket.RepairType == RepairType.DriveAccessPermission)
         {
+            // DriveAccessDepartment is required for Drive Access Permission
+            if (string.IsNullOrWhiteSpace(ticket.DriveAccessDepartment))
+            {
+                ModelState.AddModelError(nameof(RepairTicket.DriveAccessDepartment), "กรุณาเลือกฝ่ายที่ต้องการขอสิทธิ์ Drive");
+            }
+
             var driveDepartment = ticket.DriveAccessDepartment.Trim();
             var driveRemark = $"ฝ่ายที่ต้องการขอสิทธิ์ Drive: {driveDepartment}";
             if (string.IsNullOrWhiteSpace(ticket.IssueDescription))
@@ -952,7 +1032,12 @@ public class RepairTicketsController(AppDbContext context, UserManager<Applicati
         ViewData["ApprovalStatuses"] = editableStatusFlow.Skip(1).ToList();
 
         await PopulateItSupportSelectionsAsync(ticket.AssignedItUserId);
-        await PopulateApproverSelectionsAsync(ticket.ApproverDepartment, ticket.ApproverUserId);
+        // When requester is editing, use NextApproverDepartment as the selected department
+        // so the dropdown shows the correct department for the NextApprover
+        var selectedApproverDepartment = (ViewData["RequesterEditMode"] as bool? ?? false)
+            ? ticket.NextApproverDepartment
+            : ticket.ApproverDepartment;
+        await PopulateApproverSelectionsAsync(selectedApproverDepartment, ticket.ApproverUserId);
         await PopulateDriveAccessDepartmentSelectionsAsync(ticket.DriveAccessDepartment);
         await PopulateThirdApproverSelectionsAsync(ticket.ThirdApproverUserId);
         
@@ -964,28 +1049,51 @@ public class RepairTicketsController(AppDbContext context, UserManager<Applicati
         // Show DX approver dropdown for DriveAccessPermission tickets when:
         // 1. Ticket type is DriveAccessPermission
         // 2. User is not in requester edit mode
-        // 3. Either: User is a DX approver OR ticket has been approved (ApproverUserId is set)
-        var isDxApprover = currentUser != null 
-            && !string.IsNullOrWhiteSpace(currentUser.Department) 
-            && currentUser.Department.Trim().Equals("DX", StringComparison.OrdinalIgnoreCase)
-            && User.IsInRole(AppRoles.Approve)
-            && !User.IsInRole(AppRoles.ITSupport);
+        // 3. Current user is NextApproverUserId AND first approval is done (ApproverUserId != null) AND second approval not yet done (SecondApproverUserId == null)
+        // OR Current user is SecondApproverUserId (after second approval, can edit their selection)
+        var currentUserId = currentUser?.Id;
+        var ticketNextApproverId = ticket.NextApproverUserId?.Trim();
+        var ticketSecondApproverId = ticket.SecondApproverUserId?.Trim();
+        var ticketApproverId = ticket.ApproverUserId?.Trim();
         
-        var hasBeenApproved = !string.IsNullOrWhiteSpace(ticket.ApproverUserId);
+        var isNextApprover = !string.IsNullOrWhiteSpace(ticketNextApproverId) 
+            && ticketNextApproverId == currentUserId;
+        var isSecondApprover = !string.IsNullOrWhiteSpace(ticketSecondApproverId) 
+            && ticketSecondApproverId == currentUserId;
+        
+        // Show DX dropdown when:
+        // - Current user is NextApprover AND first approval is done AND second approval not yet done
+        // - OR Current user is SecondApprover (after second approval)
+        // - OR Current user is a third-party viewer at Step 2 (ApproverUserId != null && SecondApproverUserId != null && Step == 2 && CurrentUserId != both)
+        var isThirdPartyViewerStep2 = !string.IsNullOrWhiteSpace(ticketApproverId)
+            && !string.IsNullOrWhiteSpace(ticketSecondApproverId)
+            && ticket.Step == 2
+            && ticketApproverId != currentUserId
+            && ticketSecondApproverId != currentUserId;
+        var shouldShowDxDropdown = ticket.RepairType == RepairType.DriveAccessPermission 
+            && !(ViewData["RequesterEditMode"] as bool? ?? false)
+            && (
+                (isNextApprover && !string.IsNullOrWhiteSpace(ticketApproverId) && string.IsNullOrWhiteSpace(ticketSecondApproverId))
+                || isSecondApprover
+                || isThirdPartyViewerStep2
+            );
         
         // Debug logging
-        Console.WriteLine($"DEBUG EDIT: TicketId={ticket.Id}, RepairType={ticket.RepairType}, IsDxApprover={isDxApprover}, HasBeenApproved={hasBeenApproved}, RequesterEditMode={ViewData["RequesterEditMode"]}");
+        Console.WriteLine($"DEBUG EDIT: TicketId={ticket.Id}, RepairType={ticket.RepairType}");
+        Console.WriteLine($"DEBUG EDIT: IsNextApprover={isNextApprover}, IsSecondApprover={isSecondApprover}");
+        Console.WriteLine($"DEBUG EDIT: CurrentUserId='{currentUserId}'");
+        Console.WriteLine($"DEBUG EDIT: NextApproverUserId='{ticketNextApproverId}'");
+        Console.WriteLine($"DEBUG EDIT: SecondApproverUserId='{ticketSecondApproverId}'");
+        Console.WriteLine($"DEBUG EDIT: ApproverUserId='{ticketApproverId}'");
+        Console.WriteLine($"DEBUG EDIT: RequesterEditMode={ViewData["RequesterEditMode"]}");
+        Console.WriteLine($"DEBUG EDIT: ShouldShowDX={shouldShowDxDropdown}");
         
-        // Show DX mode dropdown for DriveAccessPermission tickets when:
-        // - User is DX approver, OR
-        // - Ticket has been approved (so DX approver can select next IT approver)
-        if (ticket.RepairType == RepairType.DriveAccessPermission 
-            && !(ViewData["RequesterEditMode"] as bool? ?? false)
-            && (isDxApprover || hasBeenApproved))
+        // Show DX mode dropdown when conditions are met
+        if (shouldShowDxDropdown)
         {
-            // Show only DX approvers for NextApprover selection
-            var dxApprovers = await GetApproverUsersAsync();
-            dxApprovers = dxApprovers
+            // Show only DX department approvers for NextApprover selection
+            var dxDepartmentApprovers = await GetApproverUsersAsync();
+            dxDepartmentApprovers = dxDepartmentApprovers
                 .Where(user => !string.IsNullOrWhiteSpace(user.Department) 
                     && user.Department.Trim().Equals("DX", StringComparison.OrdinalIgnoreCase))
                 .ToList();
@@ -996,41 +1104,49 @@ public class RepairTicketsController(AppDbContext context, UserManager<Applicati
                 var currentNextApprover = await _userManager.FindByIdAsync(ticket.NextApproverUserId);
 
                 if (currentNextApprover != null
-                    && !dxApprovers.Any(x => x.Id == currentNextApprover.Id))
+                    && !dxDepartmentApprovers.Any(x => x.Id == currentNextApprover.Id))
                 {
-                    dxApprovers.Add(currentNextApprover);
+                    dxDepartmentApprovers.Add(currentNextApprover);
                 }
             }
 
-            // Filter to show only IT department users
-            var itDepartmentUsers = dxApprovers
-                .Where(user => !string.IsNullOrWhiteSpace(user.Department) 
-                    && user.Department.Trim().Equals("IT", StringComparison.OrdinalIgnoreCase))
-                .ToList();
-
-            // If no IT department users found, add current NextApprover if they exist
-            if (!itDepartmentUsers.Any() && !string.IsNullOrWhiteSpace(ticket.NextApproverUserId))
+            // If no DX department users found, add current NextApprover if they exist
+            if (!dxDepartmentApprovers.Any() && !string.IsNullOrWhiteSpace(ticket.NextApproverUserId))
             {
                 var currentNextApprover = await _userManager.FindByIdAsync(ticket.NextApproverUserId);
                 if (currentNextApprover != null)
                 {
-                    itDepartmentUsers.Add(currentNextApprover);
+                    dxDepartmentApprovers.Add(currentNextApprover);
                 }
             }
             
-            ViewData["ApproverUsers"] = itDepartmentUsers;
+            ViewData["ApproverUsers"] = dxDepartmentApprovers;
             ViewData["NextApproverFilterMode"] = "DX";
             
-            // Create independent list for direct DX approver select (users with both IT and Approve roles)
+            // Create independent list for direct DX approver select (users with Approve role in DX department)
             var usersWithApproveRole = await _userManager.GetUsersInRoleAsync(AppRoles.Approve);
-            var usersWithItRole = await _userManager.GetUsersInRoleAsync(AppRoles.ITSupport);
             
-            // Find users who have BOTH IT and Approve roles
+            // Find users who have Approve role AND are in the DX department
             var usersWithBothRoles = usersWithApproveRole
-                .Where(approveUser => usersWithItRole.Any(itUser => itUser.Id == approveUser.Id))
+                .Where(user => !string.IsNullOrWhiteSpace(user.Department)
+                    && user.Department.Trim().Equals("DX", StringComparison.OrdinalIgnoreCase))
                 .OrderBy(user => user.FullName)
                 .ThenBy(user => user.UserName)
                 .ToList();
+            
+            // Ensure the current user is always in the list so the dropdown can default to them
+            // Only add if the current user is in the DX department
+            if (currentUser != null
+                && !string.IsNullOrWhiteSpace(currentUser.Department)
+                && currentUser.Department.Trim().Equals("DX", StringComparison.OrdinalIgnoreCase)
+                && !usersWithBothRoles.Any(user => user.Id == currentUser.Id))
+            {
+                usersWithBothRoles.Add(currentUser);
+                usersWithBothRoles = usersWithBothRoles
+                    .OrderBy(user => user.FullName)
+                    .ThenBy(user => user.UserName)
+                    .ToList();
+            }
             
             ViewData["DirectDxApproverUsers"] = usersWithBothRoles;
         }
@@ -1044,7 +1160,9 @@ public class RepairTicketsController(AppDbContext context, UserManager<Applicati
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Edit(int id, [Bind("Id,RequesterName,Department,DeviceName,IssueDescription,RepairType,Priority,Status,CreatedAt,ApproverDepartment,ApproverUserId,ApproverName,AssignedItUserId,AssignedItName,SecondApproverUserId,SecondApproverName,ThirdApproverUserId,ThirdApproverName,NextApproverUserId,NextApproverName,NextApproverDepartment,DriveAccessDepartment")] RepairTicket ticket, string? rejectRemark, List<TicketStatus>? approvalStatuses, IFormFile? pdfAttachment)
+
+    public async Task<IActionResult> Edit(int id, [Bind("Id,RequesterName,Department,DeviceName,IssueDescription,RepairType,DriveAccessDepartment,Priority,Status,CreatedAt,ApproverDepartment,ApproverUserId,ApproverName,AssignedItUserId,NextApproverUserId,NextApproverName,NextApproverDepartment,Step,ThirdApproverUserId,DxFinalApproverUserId")] RepairTicket ticket, string? rejectRemark, List<TicketStatus>? approvalStatuses, string? thirdApproverUserId, IFormFile? pdfAttachment)
+
     {
         if (id != ticket.Id)
         {
@@ -1066,36 +1184,89 @@ public class RepairTicketsController(AppDbContext context, UserManager<Applicati
             || User.IsInRole(AppRoles.ITSupport)
             || User.IsInRole(AppRoles.Admin);
         var originalStatus = existingTicket.Status;
+        
+        // Get current user department early (needed for DX checks)
+        var currentUserDepartment = currentUser?.Department?.Trim() ?? string.Empty;
+        var isDxDepartment = string.Equals(currentUserDepartment, "DX", StringComparison.OrdinalIgnoreCase);
+        
+        // Server-side validation: Prevent user from approving and routing to themselves
+        // Skip validation when current user is a DIFFERENT approver at Step 1 (ApproverUserId already set by another user)
+        var isDifferentApproverStep1 = !string.IsNullOrWhiteSpace(existingTicket.ApproverUserId)
+            && string.IsNullOrWhiteSpace(existingTicket.SecondApproverUserId)
+            && existingTicket.Step == 1
+            && currentUser?.Id != existingTicket.ApproverUserId;
+
+        if (currentUser != null && isPrivilegedUser && canEditStatus && !isDifferentApproverStep1)
+        {
+            var nextApproverUserId = ticket.NextApproverUserId?.Trim();
+            var approverUserId = ticket.ApproverUserId?.Trim();
+            
+            // Check if Next Approver User is the same as current user
+            if (!string.IsNullOrWhiteSpace(nextApproverUserId) && existingTicket.DxFinalApproverUserId != currentUser.Id &&
+                string.Equals(nextApproverUserId, currentUser.Id, StringComparison.Ordinal))
+            {
+                ModelState.AddModelError("NextApproverUserId", 
+                    "⚠️ ไม่สามารถบันทึกรายการได้ กรุณาเปลี่ยนให้เป็นฝ่ายและผู้อนุมัติที่ต่างจากของคุณ");
+            }
+            
+            // Check if Approver User is the same as current user
+            if (!string.IsNullOrWhiteSpace(approverUserId) && 
+                string.Equals(approverUserId, currentUser.Id, StringComparison.Ordinal))
+            {
+                ModelState.AddModelError("ApproverUserId", 
+                    "⚠️ ไม่สามารถบันทึกรายการได้ กรุณาเปลี่ยนผู้อนุมัติให้เป็นคนอื่น");
+            }
+        }
         var canMarkCompleteByAssignee = currentUser is not null
             && !string.IsNullOrWhiteSpace(existingTicket.AssignedItUserId)
             && string.Equals(existingTicket.AssignedItUserId, currentUser.Id, StringComparison.Ordinal)
             && originalStatus == TicketStatus.InProgress;
         var isOwner = IsOwnerTicket(existingTicket, currentUser);
         
-        // Handle ThirdApproverUserId from DX mode dropdown BEFORE clearing
-        // In DX mode, the "เลือกผู้อนุมัติ DX (ขั้นตอนสุดท้าย)" dropdown saves to ThirdApproverUserId
-        var thirdApproverUserIdFromForm = ticket.ThirdApproverUserId?.Trim();
+        // Handle DxFinalApproverUserId from DX mode dropdown BEFORE clearing
+        // In DX mode, the "เลือกผู้อนุมัติ DX (ขั้นตอนสุดท้าย)" dropdown saves to DxFinalApproverUserId
+        var dxFinalApproverUserIdFromForm = ticket.DxFinalApproverUserId?.Trim();
         
-        if (!string.IsNullOrWhiteSpace(thirdApproverUserIdFromForm))
+        if (!string.IsNullOrWhiteSpace(dxFinalApproverUserIdFromForm))
         {
-            existingTicket.ThirdApproverUserId = thirdApproverUserIdFromForm;
+            existingTicket.DxFinalApproverUserId = dxFinalApproverUserIdFromForm;
             
-            // Look up the third approver from the user ID
-            var thirdApproverUser = await _userManager.FindByIdAsync(thirdApproverUserIdFromForm);
+            // Look up the DX final approver from the user ID
+            var dxFinalApproverUser = await _userManager.FindByIdAsync(dxFinalApproverUserIdFromForm);
             
-            // Auto-populate ThirdApproverName from user database
-            existingTicket.ThirdApproverName = !string.IsNullOrWhiteSpace(thirdApproverUser?.FullName)
-                ? thirdApproverUser.FullName
-                : (thirdApproverUser?.UserName ?? thirdApproverUser?.Email ?? "Unknown");
+            // Auto-populate DxFinalApproverName from user database
+            existingTicket.DxFinalApproverName = !string.IsNullOrWhiteSpace(dxFinalApproverUser?.FullName)
+                ? dxFinalApproverUser.FullName
+                : (dxFinalApproverUser?.UserName ?? dxFinalApproverUser?.Email ?? "Unknown");
             
-            Console.WriteLine($"DEBUG: Updated ThirdApproverUserId to: '{existingTicket.ThirdApproverUserId}'");
-            Console.WriteLine($"DEBUG: Updated ThirdApproverName to: '{existingTicket.ThirdApproverName}'");
+            Console.WriteLine($"DEBUG: Updated DxFinalApproverUserId to: '{existingTicket.DxFinalApproverUserId}'");
+            Console.WriteLine($"DEBUG: Updated DxFinalApproverName to: '{existingTicket.DxFinalApproverName}'");
+            
+            // When DX approver selects a user from "เลือกผู้อนุมัติ DX (ขั้นตอนสุดท้าย)" dropdown,
+            // also update NextApprover fields with this value
+            if (existingTicket.RepairType == RepairType.DriveAccessPermission
+                && isDxDepartment
+                && canEditStatus
+                && !string.IsNullOrWhiteSpace(existingTicket.ApproverUserId))
+            {
+                existingTicket.NextApproverUserId = dxFinalApproverUserIdFromForm;
+                existingTicket.NextApproverName = !string.IsNullOrWhiteSpace(dxFinalApproverUser?.FullName)
+                    ? dxFinalApproverUser.FullName
+                    : (dxFinalApproverUser?.UserName ?? dxFinalApproverUser?.Email ?? "Unknown");
+                existingTicket.NextApproverDepartment = dxFinalApproverUser?.Department?.Trim() ?? string.Empty;
+                
+                Console.WriteLine($"DEBUG: Updated NextApprover from DX dropdown to: '{existingTicket.NextApproverUserId}' - '{existingTicket.NextApproverName}'");
+            }
         }
         
         // Clear ThirdApprover fields from the bound model to prevent unwanted updates
         // ThirdApprover should ONLY be set by explicit form submission or controller logic
         ticket.ThirdApproverUserId = null;
         ticket.ThirdApproverName = null;
+        // Clear DxFinalApprover fields from the bound model to prevent unwanted updates
+        // DxFinalApprover should ONLY be set by explicit form submission or controller logic
+        ticket.DxFinalApproverUserId = null;
+        ticket.DxFinalApproverName = null;
         var persistedTimelineStatuses = await _context.RepairTicketStatusHistories
             .AsNoTracking()
             .Where(history => history.RepairTicketId == existingTicket.Id)
@@ -1182,7 +1353,29 @@ public class RepairTicketsController(AppDbContext context, UserManager<Applicati
             existingTicket.Department = ticket.Department;
             existingTicket.DeviceName = ticket.DeviceName;
             existingTicket.IssueDescription = ticket.IssueDescription;
-            existingTicket.RepairType = ticket.RepairType;
+            // Don't update RepairType - preserve the original value from creation
+            // existingTicket.RepairType = ticket.RepairType;
+            existingTicket.DriveAccessDepartment = ticket.DriveAccessDepartment?.Trim() ?? string.Empty;
+            
+            // Allow requester to edit NextApprover fields when status is Open
+            if (originalStatus == TicketStatus.Open)
+            {
+                existingTicket.NextApproverUserId = ticket.NextApproverUserId?.Trim();
+                existingTicket.NextApproverDepartment = ticket.NextApproverDepartment?.Trim();
+                
+                // Auto-populate NextApproverName from user database
+                if (!string.IsNullOrWhiteSpace(existingTicket.NextApproverUserId))
+                {
+                    var nextApproverUser = await _userManager.FindByIdAsync(existingTicket.NextApproverUserId);
+                    existingTicket.NextApproverName = !string.IsNullOrWhiteSpace(nextApproverUser?.FullName)
+                        ? nextApproverUser.FullName
+                        : (nextApproverUser?.UserName ?? nextApproverUser?.Email ?? "Unknown");
+                }
+                else
+                {
+                    existingTicket.NextApproverName = null;
+                }
+            }
             
             // Allow owner to Close ticket when status is Complete, or Reopen when status is Rejected
             if (originalStatus == TicketStatus.Complete && effectiveStatus == TicketStatus.Closed)
@@ -1215,8 +1408,6 @@ public class RepairTicketsController(AppDbContext context, UserManager<Applicati
         }
 
         // Auto-route to all IT staff with Approve role for Drive Access Permission when approved
-        var currentUserDepartment = currentUser?.Department?.Trim() ?? string.Empty;
-        var isDxDepartment = string.Equals(currentUserDepartment, "DX", StringComparison.OrdinalIgnoreCase);
         
         // // Set second approver for Drive Access Permission when current user is the NextApprover
         // // This runs when the NextApprover approves or edits an approved Drive Access ticket
@@ -1233,27 +1424,6 @@ public class RepairTicketsController(AppDbContext context, UserManager<Applicati
         //         ? currentUser.FullName
         //         : (currentUser.UserName ?? currentUser.Email ?? "Unknown");
         // }
-        
-        // Set SecondApprover for Drive Access Permission when DX approver approves
-        // Only set when:
-        // 1. Ticket is DriveAccessPermission
-        // 2. Current user IS from DX department (second approver)
-        // 3. SecondApproverUserId is not already set (first time setting)
-        // 4. This is a new approval action (status changed from non-Approved to Approved)
-        // Note: SecondApprover should be set by DX approver, NOT by the first approver
-        if (existingTicket.RepairType == RepairType.DriveAccessPermission 
-            && isDxDepartment 
-            && canEditStatus
-            && isNewApproval
-            && string.IsNullOrWhiteSpace(existingTicket.SecondApproverUserId))
-        {
-            // Set SecondApprover to the DX approver who is performing the second approval
-            // This ensures SecondApprover is only set once by the DX department approver
-            existingTicket.SecondApproverUserId = currentUser.Id;
-            existingTicket.SecondApproverName = !string.IsNullOrWhiteSpace(currentUser.FullName)
-                ? currentUser.FullName
-                : (currentUser.UserName ?? currentUser.Email ?? "Unknown");
-        }
         
         // Update ApprovalLevel for Drive Access Permission based on who is approving
         if (existingTicket.RepairType == RepairType.DriveAccessPermission 
@@ -1272,10 +1442,13 @@ public class RepairTicketsController(AppDbContext context, UserManager<Applicati
         }
 
         // Update NextApprover fields when status changes to Approved
-        // Only auto-update on NEW approval (status changed from non-Approved to Approved) and if form didn't provide values
+        // IMPORTANT: Check if form provided NextApprover values FIRST, before auto-routing
+        var nextApproverFromForm = ticket.NextApproverUserId?.Trim();
+        
+        // Only apply auto-routing if form didn't provide NextApprover values
         if (effectiveStatus == TicketStatus.Approved && canEditStatus 
             && isNewApproval
-            && string.IsNullOrWhiteSpace(ticket.NextApproverUserId))
+            && string.IsNullOrWhiteSpace(nextApproverFromForm))
         {
             var approverUsers = await GetApproverUsersAsync();
             
@@ -1296,10 +1469,10 @@ public class RepairTicketsController(AppDbContext context, UserManager<Applicati
                             ? nextApprover.FullName
                             : (nextApprover.UserName ?? nextApprover.Email ?? "Unknown");
                         existingTicket.NextApproverDepartment = nextApprover.Department?.Trim() ?? string.Empty;
+                        Console.WriteLine($"DEBUG: Auto-routed NextApprover to DX: '{nextApprover.Id}'");
                     }
                 }
                 // Don't clear NextApprover when DX approves - let the manual form handling take care of it
-                // The NextApprover should only be cleared when the workflow is truly complete
             }
             else
             {
@@ -1307,7 +1480,13 @@ public class RepairTicketsController(AppDbContext context, UserManager<Applicati
                 existingTicket.NextApproverUserId = null;
                 existingTicket.NextApproverName = null;
                 existingTicket.NextApproverDepartment = null;
+                Console.WriteLine($"DEBUG: Cleared NextApprover for normal repair");
             }
+        }
+        else if (effectiveStatus == TicketStatus.Approved && isNewApproval && !string.IsNullOrWhiteSpace(nextApproverFromForm))
+        {
+            // Form provided NextApprover value - preserve it (don't overwrite with auto-routing)
+            Console.WriteLine($"DEBUG: Form provided NextApprover, preserving: '{nextApproverFromForm}'");
         }
         else if (effectiveStatus == TicketStatus.Open && originalStatus != TicketStatus.Open)
         {
@@ -1340,8 +1519,23 @@ public class RepairTicketsController(AppDbContext context, UserManager<Applicati
         existingTicket.Department = ticket.Department;
         existingTicket.DeviceName = ticket.DeviceName;
         existingTicket.IssueDescription = ticket.IssueDescription;
+
         // Don't update RepairType - preserve the original value from creation
         // existingTicket.RepairType = ticket.RepairType;
+        // Preserve existing DriveAccessDepartment if form value is empty
+        if (existingTicket.RepairType == RepairType.DriveAccessPermission)
+        {
+            var driveAccessDeptFromForm = ticket.DriveAccessDepartment?.Trim();
+            if (!string.IsNullOrWhiteSpace(driveAccessDeptFromForm))
+            {
+                existingTicket.DriveAccessDepartment = driveAccessDeptFromForm;
+            }
+        }
+        else
+        {
+            existingTicket.DriveAccessDepartment = string.Empty;
+        }
+
         existingTicket.Priority = ticket.Priority;
         existingTicket.Status = effectiveStatus;
         existingTicket.CreatedAt = ticket.CreatedAt;
@@ -1380,26 +1574,77 @@ public class RepairTicketsController(AppDbContext context, UserManager<Applicati
         // 1. If there's a new approval (status changed to Approved), set to current user
         // 2. If the form submitted approver fields (user clicked Approve button), save them
         //Flow การอนุมัติ
+        var originalStep = existingTicket.Step;
+
+
+
+                if (originalStep != 1)
+                    Console.WriteLine($"FAIL: originalStep = {originalStep}");
+
+                if (string.IsNullOrWhiteSpace(existingTicket.ApproverUserId))
+                    Console.WriteLine("FAIL: ApproverUserId");
+
+                if (existingTicket.SecondApproverUserId != null)
+                    Console.WriteLine($"FAIL: SecondApproverUserId = {existingTicket.SecondApproverUserId}");
+
+                if (string.IsNullOrWhiteSpace(existingTicket.NextApproverUserId))
+                    Console.WriteLine("FAIL: NextApproverUserId");
+
+                if (currentUser?.Id == existingTicket.ApproverUserId)
+                    Console.WriteLine("FAIL: currentUser == ApproverUserId");
+
+                if (!string.Equals(
+                        existingTicket.NextApproverUserId?.Trim(),
+                        currentUser?.Id?.Trim(),
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    Console.WriteLine("FAIL: NextApproverUserId != currentUser.Id");
+                }
+    
+         //Level 1
 
         if (currentUser != null && canEditStatus && isNewApproval)
         {
             // New approval: Set approver to the current user who performed the approval
             existingTicket.ApproverUserId = currentUser.Id;
+            existingTicket.Step = 1;
             existingTicket.ApproverName = !string.IsNullOrWhiteSpace(currentUser.FullName)
                 ? currentUser.FullName
                 : (currentUser.UserName ?? currentUser.Email ?? "Unknown");
+
+
+
+            // Form provided NextApproverUserId - use it
+            existingTicket.NextApproverUserId = ticket.NextApproverUserId;
+            existingTicket.NextApproverDepartment = ticket.NextApproverDepartment;
+
+            // Look up the next approver from the user ID
+            var nextApproverUser = await _userManager.FindByIdAsync(ticket.NextApproverUserId);
+
+            // Auto-populate NextApproverName from user database
+            existingTicket.NextApproverName = !string.IsNullOrWhiteSpace(nextApproverUser?.FullName)
+                ? nextApproverUser.FullName
+                : (nextApproverUser?.UserName ?? nextApproverUser?.Email ?? "Unknown");
+
+
         }
         else if (!string.IsNullOrWhiteSpace(ticket.ApproverUserId) && canEditStatus)
         {
             // Approver was selected/form submitted (user clicked Approve button): save the values
             // This handles the case where user clicks Approve on an already-approved ticket
             existingTicket.ApproverUserId = ticket.ApproverUserId;
-            
+            existingTicket.Step = 1;
+
             // Look up the approver name from the user ID since we removed the hidden ApproverName field
             var approverUser = await _userManager.FindByIdAsync(ticket.ApproverUserId);
             existingTicket.ApproverName = !string.IsNullOrWhiteSpace(approverUser?.FullName)
                 ? approverUser.FullName
                 : (approverUser?.UserName ?? approverUser?.Email ?? "Unknown");
+        }
+        else
+        {
+            // Preserve the user's Step value from the form when not in an approval flow
+            existingTicket.Step = ticket.Step;
         }
         // Otherwise, preserve existing values (don't overwrite)
         
@@ -1407,7 +1652,12 @@ public class RepairTicketsController(AppDbContext context, UserManager<Applicati
         // Save DriveAccessDepartment for DriveAccessPermission tickets
         if (existingTicket.RepairType == RepairType.DriveAccessPermission)
         {
-            existingTicket.DriveAccessDepartment = ticket.DriveAccessDepartment?.Trim() ?? string.Empty;
+            // Preserve existing value if form did not provide a value
+            var driveAccessDeptFromForm = ticket.DriveAccessDepartment?.Trim();
+            if (!string.IsNullOrWhiteSpace(driveAccessDeptFromForm))
+            {
+                existingTicket.DriveAccessDepartment = driveAccessDeptFromForm;
+            }
         }
         else
         {
@@ -1417,27 +1667,79 @@ public class RepairTicketsController(AppDbContext context, UserManager<Applicati
         //Level 2
 
         // Handle SecondApproverUserId (DX SM/DM for Drive Access)
-        // IMPORTANT: SecondApproverUserId must ONLY be set when the first approver (ApproverUserId) has already approved.
-        // When the first approver (ApproverUserId) approves (isNewApproval), SecondApproverUserId must NOT be saved.
-        // When the SecondApprover saves (ApproverUserId already set from a previous approval), record them as the current user (CurrentUserId).
+        // Save SecondApproverUserId when:
+        // 1. Current user is not null
+        // 2. Current user is the NextApproverUserId (DX approver)
+        // 3. Ticket is DriveAccessPermission type
+        // 4. User has edit permission
+        // 5. First approval is done (ApproverUserId is set)
+        // 6. ApproverUserId is different from NextApproverUserId (to avoid setting during first approval)
+        // This ensures SecondApproverUserId is saved when DX approver clicks Approve and Save
+        
         if (existingTicket.RepairType == RepairType.DriveAccessPermission
             && canEditStatus
             && currentUser != null
-            && !isNewApproval
+            && originalStep == 1
             && !string.IsNullOrWhiteSpace(existingTicket.ApproverUserId)
-            && (effectiveStatus == TicketStatus.Approved || originalStatus == TicketStatus.Approved))
+            //&& existingTicket.SecondApproverUserId is null
+            && !string.IsNullOrWhiteSpace(existingTicket.NextApproverUserId)
+            //&& existingTicket.ApproverUserId != existingTicket.NextApproverUserId
+            && currentUser.Id != existingTicket.ApproverUserId
+            && string.Equals(existingTicket.NextApproverUserId, currentUser.Id, StringComparison.Ordinal))
+
         {
-            // Save the current user who is the SecondApprover
+            // Set SecondApproverUserId to current user (DX approver) when they save
+            // This runs when ApproverUserId is set and current user is the NextApproverUserId
+            
             existingTicket.SecondApproverUserId = currentUser.Id;
+            existingTicket.Step = 2;
             existingTicket.SecondApproverName = !string.IsNullOrWhiteSpace(currentUser.FullName)
                 ? currentUser.FullName
                 : (currentUser.UserName ?? currentUser.Email ?? "Unknown");
+
+
+            if (existingTicket.RepairType == RepairType.DriveAccessPermission)
+            {
+                // Preserve existing value if form did not provide a value
+                var driveAccessDeptFromForm = ticket.DriveAccessDepartment?.Trim();
+                if (!string.IsNullOrWhiteSpace(driveAccessDeptFromForm))
+                {
+                    existingTicket.DriveAccessDepartment = driveAccessDeptFromForm;
+                }
+            }
+            else
+            {
+                existingTicket.DriveAccessDepartment = string.Empty;
+            }
+
+            // Set DxFinalApprover fields from the "เลือกผู้อนุมัติ DX (ขั้นตอนสุดท้าย)" dropdown selection
+            // Use the value from the form (dxFinalApproverUserIdFromForm) instead of current user
+            if (!string.IsNullOrWhiteSpace(dxFinalApproverUserIdFromForm))
+            {
+                existingTicket.DxFinalApproverUserId = dxFinalApproverUserIdFromForm;
+                
+                // Look up the selected DX final approver from the user ID
+                var dxFinalApproverUser = await _userManager.FindByIdAsync(dxFinalApproverUserIdFromForm);
+                existingTicket.DxFinalApproverName = !string.IsNullOrWhiteSpace(dxFinalApproverUser?.FullName)
+                    ? dxFinalApproverUser.FullName
+                    : (dxFinalApproverUser?.UserName ?? dxFinalApproverUser?.Email ?? "Unknown");
+                
+                Console.WriteLine($"DEBUG: Set DxFinalApprover from dropdown - UserId: '{existingTicket.DxFinalApproverUserId}', Name: '{existingTicket.DxFinalApproverName}'");
+            }
+            else
+            {
+                // Fallback to current user if no dropdown selection was provided
+                existingTicket.DxFinalApproverUserId = currentUser.Id;
+                existingTicket.DxFinalApproverName = !string.IsNullOrWhiteSpace(currentUser.FullName)
+                    ? currentUser.FullName
+                    : (currentUser.UserName ?? currentUser.Email ?? "Unknown");
+                
+                Console.WriteLine($"DEBUG: No dropdown selection, fallback DxFinalApprover to current user: '{existingTicket.DxFinalApproverUserId}'");
+            }
+            
+            Console.WriteLine($"DEBUG: Set/Updated SecondApproverUserId to current user: '{existingTicket.SecondApproverUserId}'");
         }
-        else if (!isNewApproval && !string.IsNullOrWhiteSpace(ticket.SecondApproverUserId) && !string.IsNullOrWhiteSpace(existingTicket.ApproverUserId))
-        {
-            existingTicket.SecondApproverUserId = ticket.SecondApproverUserId.Trim();
-            existingTicket.SecondApproverName = ticket.SecondApproverName?.Trim() ?? string.Empty;
-        }
+
         // If form didn't provide value, keep the existing value (set by auto-routing logic above)
         // If first approver (ApproverUserId) has not approved yet, do NOT save SecondApproverUserId from the form
 
@@ -1449,14 +1751,28 @@ public class RepairTicketsController(AppDbContext context, UserManager<Applicati
 
         // Handle NextApprover fields - allow manual override from form if provided
         // Only update if form provided values (auto-routing only happens on new approval without form values)
-        var nextApproverUserIdFromForm = ticket.NextApproverUserId?.Trim();
+        var nextApproverUserIdFromForm = existingTicket.DxFinalApproverUserId;  //existingTicket.DxFinalApproverName
+        var nextApproverNameFromForm = existingTicket.DxFinalApproverName;
+        var nextApproverDepartmentFromForm = "DX";//ticket.NextApproverDepartment?.Trim();
         
         // Debug logging
         Console.WriteLine($"DEBUG: NextApproverUserId from form: '{nextApproverUserIdFromForm}'");
+        Console.WriteLine($"DEBUG: NextApproverName from form: '{nextApproverNameFromForm}'");
+        Console.WriteLine($"DEBUG: NextApproverDepartment from form: '{nextApproverDepartmentFromForm}'");
         Console.WriteLine($"DEBUG: Existing NextApproverUserId: '{existingTicket.NextApproverUserId}'");
+        Console.WriteLine($"DEBUG: Existing NextApproverName: '{existingTicket.NextApproverName}'");
+        Console.WriteLine($"DEBUG: Existing NextApproverDepartment: '{existingTicket.NextApproverDepartment}'");
+        Console.WriteLine($"DEBUG: ApproverUserId: '{existingTicket.ApproverUserId}'");
+        Console.WriteLine($"DEBUG: isNewApproval: {isNewApproval}");
+
+
+        //Level 3
         
-        if (!string.IsNullOrWhiteSpace(nextApproverUserIdFromForm))
+        if (!string.IsNullOrWhiteSpace(nextApproverUserIdFromForm) && canEditStatus && originalStep == 2 
+            && currentUser.Id != existingTicket.ApproverUserId && currentUser.Id != existingTicket.SecondApproverUserId
+            && string.Equals(existingTicket.DxFinalApproverUserId, currentUser.Id, StringComparison.Ordinal))
         {
+            // Form provided NextApproverUserId - use it
             existingTicket.NextApproverUserId = nextApproverUserIdFromForm;
             
             // Look up the next approver from the user ID
@@ -1466,18 +1782,50 @@ public class RepairTicketsController(AppDbContext context, UserManager<Applicati
             existingTicket.NextApproverName = !string.IsNullOrWhiteSpace(nextApproverUser?.FullName)
                 ? nextApproverUser.FullName
                 : (nextApproverUser?.UserName ?? nextApproverUser?.Email ?? "Unknown");
-            
+
+
+            existingTicket.ThirdApproverUserId = currentUser.Id;
+            existingTicket.Step = 3;
+            existingTicket.ThirdApproverName = !string.IsNullOrWhiteSpace(currentUser.FullName)
+                ? currentUser.FullName
+                : (currentUser.UserName ?? currentUser.Email ?? "Unknown");
+
+
+            if (existingTicket.RepairType == RepairType.DriveAccessPermission)
+            {
+                // Preserve existing value if form did not provide a value
+                var driveAccessDeptFromForm = ticket.DriveAccessDepartment?.Trim();
+                if (!string.IsNullOrWhiteSpace(driveAccessDeptFromForm))
+                {
+                    existingTicket.DriveAccessDepartment = driveAccessDeptFromForm;
+                }
+            }
+            else
+            {
+                existingTicket.DriveAccessDepartment = string.Empty;
+            }
+
+
             // Auto-populate NextApproverDepartment from user's Department field
             existingTicket.NextApproverDepartment = nextApproverUser?.Department?.Trim() ?? string.Empty;
             
-            Console.WriteLine($"DEBUG: Updated NextApproverName to: '{existingTicket.NextApproverName}'");
-            Console.WriteLine($"DEBUG: Updated NextApproverDepartment to: '{existingTicket.NextApproverDepartment}'");
+            Console.WriteLine($"DEBUG: UPDATED NextApprover from form - UserId: '{existingTicket.NextApproverUserId}', Name: '{existingTicket.NextApproverName}', Dept: '{existingTicket.NextApproverDepartment}'");
+        }
+        else if (!string.IsNullOrWhiteSpace(nextApproverDepartmentFromForm) && canEditStatus)
+        {
+            // Form provided NextApproverDepartment but no user - update department only
+            existingTicket.NextApproverDepartment = ticket.NextApproverDepartment;
+            Console.WriteLine($"DEBUG: UPDATED NextApproverDepartment from form: '{existingTicket.NextApproverDepartment}'");
         }
         else if (!string.IsNullOrWhiteSpace(existingTicket.NextApproverUserId))
         {
             // If form didn't provide a value but there's an existing value, preserve it
             // This prevents clearing when the DX dropdown is not shown
             Console.WriteLine($"DEBUG: Preserving existing NextApproverUserId: '{existingTicket.NextApproverUserId}'");
+        }
+        else
+        {
+            Console.WriteLine($"DEBUG: No NextApproverUserId from form and no existing value");
         }
 
 
@@ -1547,8 +1895,12 @@ public class RepairTicketsController(AppDbContext context, UserManager<Applicati
         }
         else
         {
-            existingTicket.AssignedItUserId = string.Empty;
-            existingTicket.AssignedItName = string.Empty;
+            // Preserve existing assignment if form provided a value, otherwise clear
+            if (string.IsNullOrWhiteSpace(ticket.AssignedItUserId))
+            {
+                existingTicket.AssignedItUserId = string.Empty;
+                existingTicket.AssignedItName = string.Empty;
+            }
         }
 
         var trimmedRejectRemark = rejectRemark?.Trim() ?? string.Empty;
@@ -1897,12 +2249,27 @@ public class RepairTicketsController(AppDbContext context, UserManager<Applicati
 
     private async Task PopulateThirdApproverSelectionsAsync(string? selectedThirdApproverId)
     {
+        // Third approver (SM/DM of DX) should be users who have both ITSupport and Approve roles
+        var itSupportUsers = await GetItSupportUsersAsync();
         var approverUsers = await GetApproverUsersAsync();
+
         var dxApprovers = approverUsers
             .Where(user => !string.IsNullOrWhiteSpace(user.Department) 
                 && user.Department.Trim().Equals("DX", StringComparison.OrdinalIgnoreCase))
             .ToList();
         ViewData["ThirdApproverUsers"] = dxApprovers;
+
+        
+        // Filter to only users who have both ITSupport and Approve roles
+        var thirdApproverUsers = itSupportUsers
+            .Where(itUser => approverUsers.Any(approver => approver.Id == itUser.Id))
+            .OrderBy(user => user.Department)
+            .ThenBy(user => user.FullName)
+            .ThenBy(user => user.UserName)
+            .ToList();
+        
+        ViewData["ThirdApproverUsers"] = thirdApproverUsers;
+
         ViewData["SelectedThirdApproverUserId"] = selectedThirdApproverId;
     }
 

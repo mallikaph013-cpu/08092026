@@ -32,7 +32,7 @@
                     <h1 class="h2 fw-bold mb-1">
                         <i class="fas fa-plus-circle me-2"></i>Create
                     </h1>
-                    <p class="mb-0 opacity-90">Submit a new IT repair request</p>
+                    <p class="mb-0 opacity-90">Submit a new IT Service</p>
                 </div>
                 <a asp-action="Index" class="btn btn-light fw-semibold px-4">
                     <i class="fas fa-arrow-left me-2"></i>Back to List
@@ -66,6 +66,7 @@
                         </div>
                     </div>
 
+
                     <input asp-for="DeviceName" type="hidden" id="deviceNameHidden" value="N/A" />
 
                     <div class="mb-3">
@@ -76,6 +77,14 @@
                             asp-items="Html.GetEnumSelectList<ITRepairService.Models.RepairType>().Where(i => i.Value != ((int)ITRepairService.Models.RepairType.Network).ToString())"></select>
                         <span asp-validation-for="RepairType" class="text-danger small"></span>
                     </div>
+
+                    @* <div class="mb-3">
+                        <label asp-for="Step" class="form-label">
+                            <i class="fas fa-shoe-prints me-1"></i>ขั้นตอนที่
+                        </label>
+                        <input asp-for="Step" class="form-control" type="number" min="1" max="100" value="1" />
+                        <span asp-validation-for="Step" class="text-danger small"></span>
+                    </div> *@
 
                     <div class="mb-3" id="hardwareDeviceGroup" style="display:none;">
                         <label class="form-label" id="hardwareDeviceLabel">
@@ -88,9 +97,9 @@
 
                     <div class="mb-3" id="driveAccessDepartmentGroup" style="display:none;">
                         <label asp-for="DriveAccessDepartment" class="form-label">
-                            <i class="fas fa-folder-open me-1"></i>ฝ่ายที่ต้องการขอสิทธิ์ Drive
+                            <i class="fas fa-folder-open me-1"></i>ฝ่ายที่ต้องการขอสิทธิ์ Drive <span class="text-danger">*</span>
                         </label>
-                        <select asp-for="DriveAccessDepartment" class="form-select" asp-items="driveAccessDepartments" id="driveAccessDepartmentSelect">
+                        <select asp-for="DriveAccessDepartment" class="form-select" asp-items="driveAccessDepartments" id="driveAccessDepartmentSelect" required>
                             <option value="">— เลือกฝ่าย —</option>
                         </select>
                         <span asp-validation-for="DriveAccessDepartment" class="text-danger small"></span>
@@ -123,11 +132,9 @@
                             <label class="form-label">
                                 <i class="fas fa-share me-1"></i>ฝ่ายอนุมัติลำดับถัดไป <span class="text-danger">*</span>
                             </label>
-                            <select asp-for="ApproverDepartment" class="form-select" asp-items="approverDepartments" id="approverDepartmentSelect" required>
-                                <option value="">— Select approver department —</option>
-                            </select>
+                            <input asp-for="ApproverDepartment" class="form-control" id="approverDepartmentSelect" readonly />
                             <div class="form-text">
-                                <i class="fas fa-info-circle me-1"></i>ใช้ระบุว่าขั้นตอนถัดไปของงานจะส่งไปที่ฝ่ายใด
+                                <i class="fas fa-info-circle me-1"></i>ระบบกำหนดฝ่ายอนุมัติลำดับถัดไปจากฝ่ายของผู้แจ้งโดยอัตโนมัติ
                             </div>
                             <span asp-validation-for="ApproverDepartment" class="text-danger small"></span>
                         </div>
@@ -186,7 +193,7 @@
                     {
                         <input asp-for="Status" type="hidden" value="@ITRepairService.Models.TicketStatus.Open" />
                         <div class="alert alert-info py-2" id="statusApproverPreview">
-                            <i class="fas fa-info-circle me-1"></i>step ถัดไป: -
+                            <i class="fas fa-info-circle me-1"></i>ผู้อนุมัติลำถัดไป: -
                         </div>
                     }
 
@@ -416,7 +423,7 @@
                     ? selectedOption.textContent.trim().split(' (')[0]
                     : '-';
 
-                statusApproverPreview.textContent = 'step ถัดไป: ' + approverText;
+                statusApproverPreview.textContent = 'ลำดับถัดไป: ' + approverText;
             }
 
             if (hardwareDeviceSelect) {

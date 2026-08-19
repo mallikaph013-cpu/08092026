@@ -9,7 +9,9 @@
     var createdByDisplay = !string.IsNullOrWhiteSpace(Model.CreatedByName)
         ? Model.CreatedByName
         : (!string.IsNullOrWhiteSpace(Model.RequesterName) ? Model.RequesterName : "-");
-    var approverDisplay = string.IsNullOrWhiteSpace(Model.ApproverName) ? "-" : Model.ApproverName;
+    var approverDisplay = !string.IsNullOrWhiteSpace(Model.ApproverName)
+        ? Model.ApproverName
+        : (!string.IsNullOrWhiteSpace(Model.NextApproverName) ? Model.NextApproverName : "-");
     var statusDisplay = Model.Status == ITRepairService.Models.TicketStatus.Approved && !string.IsNullOrWhiteSpace(Model.ApproverName)
         ? $"Approved ({Model.ApproverName})"
         : Model.Status.ToString();
@@ -24,6 +26,8 @@
         _ => string.Empty
     };
 
+
+
     string FormatStatus(ITRepairService.Models.TicketStatus? status)
     {
         if (!status.HasValue)
@@ -32,6 +36,19 @@
         }
 
         return status.Value.ToString();
+
+    }
+
+    string GetRepairTypeDisplayName(ITRepairService.Models.RepairType repairType)
+    {
+        var displayAttribute = repairType.GetType()
+            .GetField(repairType.ToString())?
+            .GetCustomAttributes(typeof(System.ComponentModel.DataAnnotations.DisplayAttribute), false)
+            .OfType<System.ComponentModel.DataAnnotations.DisplayAttribute>()
+            .FirstOrDefault();
+
+        return displayAttribute?.GetName() ?? repairType.ToString();
+
     }
 
 }
@@ -174,7 +191,11 @@
                     </div> *@
                     <div class="col-md-6">
                         <div class="details-key mb-1">@Html.DisplayNameFor(model => model.RepairType)</div>
-                        <div class="fw-semibold">@Model.RepairType</div>
+                        <div class="fw-semibold">@GetRepairTypeDisplayName(Model.RepairType)</div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="details-key mb-1">@Html.DisplayNameFor(model => model.Step)</div>
+                        <div class="fw-semibold">@Model.Step</div>
                     </div>
                     @* <div class="col-md-6">
                         <div class="details-key mb-1">@Html.DisplayNameFor(model => model.Priority)</div>

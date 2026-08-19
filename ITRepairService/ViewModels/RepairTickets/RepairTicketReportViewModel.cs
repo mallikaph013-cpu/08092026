@@ -21,6 +21,8 @@ public class RepairTicketReportItemViewModel
 
     public string Department { get; set; } = string.Empty;
 
+    public string DriveAccessDepartment { get; set; } = string.Empty;
+
     public string DeviceName { get; set; } = string.Empty;
 
     public string IssueDescription { get; set; } = string.Empty;

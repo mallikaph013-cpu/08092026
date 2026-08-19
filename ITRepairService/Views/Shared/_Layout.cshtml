@@ -34,20 +34,39 @@
                     var currentUserUserName = currentUser?.UserName?.Trim();
                     var currentUserEmail = currentUser?.Email?.Trim();
                     var nextStepCount = 0;
+
                     var myTaskCount = 0;
+
+                    
+                    var assignedTicketCount = 0;
+
+                    
 
                     if (currentUser is not null)
                     {
-                        var openNextStepCount = await DbContext.RepairTickets
-                            .AsNoTracking()
-                            .CountAsync(ticket =>
-                                ticket.Status == TicketStatus.Open
-                                && (
-                                    (!string.IsNullOrWhiteSpace(currentUserId) && ticket.ApproverUserId == currentUserId)
-                                    || (!string.IsNullOrWhiteSpace(currentUserFullName) && ticket.ApproverName == currentUserFullName)
-                                    || (!string.IsNullOrWhiteSpace(currentUserUserName) && ticket.ApproverName == currentUserUserName)
-                                    || (!string.IsNullOrWhiteSpace(currentUserEmail) && ticket.ApproverName == currentUserEmail)
-                                ));
+                        // var openNextStepCount = await DbContext.RepairTickets
+                        //     .AsNoTracking()
+                        //     .CountAsync(ticket =>
+                        //         (ticket.Status == TicketStatus.Open || ticket.Status == TicketStatus.Approved)
+                        //         && (User is the Approver &&
+                        //             (!string.IsNullOrWhiteSpace(currentUserId) && ticket.ApproverUserId == currentUserId)
+                        //             || (!string.IsNullOrWhiteSpace(currentUserFullName) && ticket.ApproverName == currentUserFullName)
+                        //             || (!string.IsNullOrWhiteSpace(currentUserUserName) && ticket.ApproverName == currentUserUserName)
+                        //             || (!string.IsNullOrWhiteSpace(currentUserEmail) && ticket.ApproverName == currentUserEmail)
+                        //             User is the Next Approver (next in the approval workflow)
+                        //                (!string.IsNullOrWhiteSpace(currentUserId) && ticket.NextApproverUserId == currentUserId)
+                        //             || (!string.IsNullOrWhiteSpace(currentUserFullName) && ticket.NextApproverName == currentUserFullName)
+                        //             || (!string.IsNullOrWhiteSpace(currentUserUserName) && ticket.NextApproverName == currentUserUserName)
+                        //             || (!string.IsNullOrWhiteSpace(currentUserEmail) && ticket.NextApproverName == currentUserEmail)
+                        //         ));
+                                               var openNextStepCount = await DbContext.RepairTickets
+                                                .AsNoTracking()
+                                                .CountAsync(ticket =>
+                                                    (ticket.Status == TicketStatus.Open ||
+                                                     ticket.Status == TicketStatus.Approved)
+                                                    &&
+                                                    ticket.NextApproverUserId == currentUserId
+                                                );
 
                         var rejectedOwnerTicketIds = await DbContext.RepairTickets
                             .AsNoTracking()
@@ -109,14 +128,24 @@
 
                         nextStepCount = openNextStepCount + rejectedUnreadCount;
 
+
                         // Count assigned tasks for My Tasks notification
+                        // Only count tickets that are fully approved (Step == 3) and still in Approved status
                         myTaskCount = await DbContext.RepairTickets
                             .AsNoTracking()
                             .CountAsync(ticket =>
-                                (!string.IsNullOrWhiteSpace(currentUserId) && ticket.AssignedItUserId == currentUserId)
-                                || (!string.IsNullOrWhiteSpace(currentUserFullName) && ticket.AssignedItName == currentUserFullName)
-                                || (!string.IsNullOrWhiteSpace(currentUserUserName) && ticket.AssignedItName == currentUserUserName)
-                                || (!string.IsNullOrWhiteSpace(currentUserEmail) && ticket.AssignedItName == currentUserEmail));
+                                ticket.Status == TicketStatus.Approved
+                                && ticket.Step == 3
+                                && (
+                                    (!string.IsNullOrWhiteSpace(currentUserId) && ticket.AssignedItUserId == currentUserId)
+                                    || (!string.IsNullOrWhiteSpace(currentUserFullName) && ticket.AssignedItName == currentUserFullName)
+                                    || (!string.IsNullOrWhiteSpace(currentUserUserName) && ticket.AssignedItName == currentUserUserName)
+                                    || (!string.IsNullOrWhiteSpace(currentUserEmail) && ticket.AssignedItName == currentUserEmail)));
+
+                        assignedTicketCount = await DbContext.RepairTickets
+                            .AsNoTracking()
+                            .CountAsync(ticket => ticket.AssignedItUserId == currentUserId);
+
                     }
                 }
                 <a class="navbar-brand fw-bold" asp-area="" asp-controller="Home" asp-action="Index">

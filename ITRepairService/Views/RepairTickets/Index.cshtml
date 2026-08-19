@@ -66,7 +66,15 @@
         {
             return updater;
         }
-        return string.IsNullOrWhiteSpace(ticket.ApproverName) ? "-" : ticket.ApproverName;
+        if (!string.IsNullOrWhiteSpace(ticket.ApproverName))
+        {
+            return ticket.ApproverName;
+        }
+        if (!string.IsNullOrWhiteSpace(ticket.NextApproverName))
+        {
+            return ticket.NextApproverName;
+        }
+        return "-";
     }
 
     string SortIcon(string field)
