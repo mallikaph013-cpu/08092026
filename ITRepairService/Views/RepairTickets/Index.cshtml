@@ -21,7 +21,11 @@
         && !string.IsNullOrWhiteSpace(ticket.SecondApproverUserId)
         && !string.IsNullOrWhiteSpace(ticket.NextApproverUserId)
         && string.Equals(ticket.NextApproverUserId, ticket.DxFinalApproverUserId, StringComparison.Ordinal)
-        && string.IsNullOrWhiteSpace(ticket.ThirdApproverUserId)
+        // If ThirdApproverUserId has already approved (ThirdApproverName set) and
+        // NextApproverUserId points to the ThirdApproverUserId, then the approval flow is complete,
+        // so it should NOT be counted as waiting for DX final approval.
+        && !(!string.IsNullOrWhiteSpace(ticket.ThirdApproverName)
+            && string.Equals(ticket.NextApproverUserId, ticket.ThirdApproverUserId, StringComparison.Ordinal))
         // For Non DriveAccessPermission: if DxFinalApproverName is set, the DX final approval is already done,
         // so it should NOT be counted as waiting for DX final approval.
         // For DriveAccessPermission: DxFinalApproverName being set does NOT mean the workflow is complete,
@@ -151,7 +155,7 @@
                         <p class="mb-0 opacity-90">Manage IT service requests efficiently</p>
                     </div>
                     <div class="d-flex align-items-center gap-2">
-                        <span class="badge rounded-pill bg-white text-primary px-3 py-2 fs-6">@waitingDxFinalApprovalCount Case</span>
+                        <span class="badge rounded-pill bg-white text-primary px-3 py-2 fs-6">รออนุมัติ @waitingDxFinalApprovalCount Case</span>
                         @if (waitingDxFinalApprovalCount > 0)
                         {
                             <span class="badge rounded-pill bg-warning text-dark px-3 py-2 fs-6" title="จำนวนที่รออนุมัติ DX ขั้นสุดท้าย">
