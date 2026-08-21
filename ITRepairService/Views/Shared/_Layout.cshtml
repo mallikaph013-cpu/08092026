@@ -61,14 +61,27 @@
                         //             || (!string.IsNullOrWhiteSpace(currentUserUserName) && ticket.NextApproverName == currentUserUserName)
                         //             || (!string.IsNullOrWhiteSpace(currentUserEmail) && ticket.NextApproverName == currentUserEmail)
                         //         ));
-                                               var openNextStepCount = await DbContext.RepairTickets
+                                                var openNextStepCount = await DbContext.RepairTickets
                                                 .AsNoTracking()
                                                 .CountAsync(ticket =>
                                                     (ticket.Status == TicketStatus.Open ||
                                                      ticket.Status == TicketStatus.Approved)
                                                     &&
-                                                    ticket.NextApproverUserId == currentUserId
-                                                    && ticket.SecondApproverUserId != currentUserId
+                                                    (
+                                                        (
+                                                            ticket.NextApproverUserId == currentUserId
+                                                            && string.IsNullOrWhiteSpace(ticket.AssignedItUserId)
+                                                            && ticket.SecondApproverUserId != currentUserId
+                                                            && ticket.ThirdApproverUserId != currentUserId
+                                                            
+                                                        )
+                                                        ||
+                                                        (
+                                                            string.IsNullOrWhiteSpace(ticket.AssignedItUserId)
+                                                            && ticket.RepairType != RepairType.DriveAccessPermission
+                                                            
+                                                        )
+                                                    )
                                                 );
 
                         var rejectedOwnerTicketIds = await DbContext.RepairTickets
@@ -156,7 +169,8 @@
                             .AsNoTracking()
                             .CountAsync(ticket =>
                                 ticket.Status == TicketStatus.Approved
-                                && ticket.Step == 3
+                                && (ticket.Step == 3 || ticket.Step == 2)
+                                && (ticket.ApprovalLevel == 1 || ticket.ApprovalLevel == 2)
                                 && (
                                     (!string.IsNullOrWhiteSpace(currentUserId) && ticket.AssignedItUserId == currentUserId)
                                     || (!string.IsNullOrWhiteSpace(currentUserFullName) && ticket.AssignedItName == currentUserFullName)
@@ -165,7 +179,9 @@
 
                         assignedTicketCount = await DbContext.RepairTickets
                             .AsNoTracking()
-                            .CountAsync(ticket => ticket.AssignedItUserId == currentUserId);
+                            .CountAsync(ticket =>
+                                ticket.Status == TicketStatus.Approved
+                                && ticket.AssignedItUserId == currentUserId);
 
                     }
                 }

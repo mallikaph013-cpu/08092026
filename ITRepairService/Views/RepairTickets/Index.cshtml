@@ -17,10 +17,13 @@
 
     var waitingDxFinalApprovalCount = tickets.Count(ticket =>
         ticket.Step == 2
+        // Only count tickets that are still awaiting the DX final approval.
+        // If the ticket is already Approved (or in any non-waiting state) it should not be counted.
+        && ticket.Status != ITRepairService.Models.TicketStatus.Approved
         && !string.IsNullOrWhiteSpace(ticket.DxFinalApproverUserId)
         && !string.IsNullOrWhiteSpace(ticket.SecondApproverUserId)
         && !string.IsNullOrWhiteSpace(ticket.NextApproverUserId)
-        && string.Equals(ticket.NextApproverUserId, ticket.DxFinalApproverUserId, StringComparison.Ordinal)
+        //&& string.Equals(ticket.NextApproverUserId, ticket.DxFinalApproverUserId, StringComparison.Ordinal)
         // If ThirdApproverUserId has already approved (ThirdApproverName set) and
         // NextApproverUserId points to the ThirdApproverUserId, then the approval flow is complete,
         // so it should NOT be counted as waiting for DX final approval.
@@ -155,7 +158,7 @@
                         <p class="mb-0 opacity-90">Manage IT service requests efficiently</p>
                     </div>
                     <div class="d-flex align-items-center gap-2">
-                        <span class="badge rounded-pill bg-white text-primary px-3 py-2 fs-6">รออนุมัติ @waitingDxFinalApprovalCount Case</span>
+                        @* <span class="badge rounded-pill bg-white text-primary px-3 py-2 fs-6">รออนุมัติ @waitingDxFinalApprovalCount Case</span> *@
                         @if (waitingDxFinalApprovalCount > 0)
                         {
                             <span class="badge rounded-pill bg-warning text-dark px-3 py-2 fs-6" title="จำนวนที่รออนุมัติ DX ขั้นสุดท้าย">

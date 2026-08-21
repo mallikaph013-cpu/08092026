@@ -64,6 +64,10 @@
         && Model.Step == 2
         && Model.ApproverUserId != currentUserId
         && Model.SecondApproverUserId != currentUserId;
+    var isNonDriveNextApproverLocked = !isDriveAccessRepairType
+        && Model.ApprovalLevel == 1
+        && !string.IsNullOrWhiteSpace(Model.NextApproverUserId)
+        && !string.IsNullOrWhiteSpace(Model.AssignedItUserId);
 
     var originalTicketStatus = Model.Status;
     Model.Status = flowPrimaryStatus;
@@ -712,6 +716,7 @@
                         else if (isThirdPartyViewerStep2
                             || requesterEditMode 
                             || ViewData["NextApproverFilterMode"]?.ToString() == "DX"
+                            || isNonDriveNextApproverLocked
                             || (!string.IsNullOrWhiteSpace(Model.ApproverUserId) && string.IsNullOrWhiteSpace(Model.SecondApproverUserId)  && Model.Step == 2 ))
                         {
                             <input asp-for="NextApproverDepartment" class="form-control" readonly />
