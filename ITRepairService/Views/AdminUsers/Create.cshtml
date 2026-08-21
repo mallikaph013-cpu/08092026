@@ -6,7 +6,7 @@
 
 <div class="row mb-4">
     <div class="col-12">
-        <div class="card border-0 shadow-sm" style="background: linear-gradient(135deg, #9DCAEB 0%, #9DCAEB 100%); color: white;">
+        <div class="card border-0 shadow-sm" style="background: linear-gradient(135deg, #6366f1 0%, #6366f1 100%); color: white;">
             <div class="card-body py-4">
                 <h1 class="h2 fw-bold mb-1">
                     <i class="fas fa-user-plus me-3"></i>Create New User
@@ -27,7 +27,7 @@
                     <div class="mb-4">
                         <label asp-for="UserName" class="form-label fw-500">Username</label>
                         <div class="input-group">
-                            <span class="input-group-text bg-white border-end-0" style="color: #9DCAEB;">
+                            <span class="input-group-text bg-white border-end-0" style="color: #6366f1;">
                                 <i class="fas fa-at"></i>
                             </span>
                             <input asp-for="UserName" class="form-control border-start-0" placeholder="e.g. john.doe" autocomplete="username" />
@@ -39,7 +39,7 @@
                     <div class="mb-4">
                         <label asp-for="Email" class="form-label fw-500">Email Address</label>
                         <div class="input-group">
-                            <span class="input-group-text bg-white border-end-0" style="color: #9DCAEB;">
+                            <span class="input-group-text bg-white border-end-0" style="color: #6366f1;">
                                 <i class="fas fa-envelope"></i>
                             </span>
                             <input asp-for="Email" class="form-control border-start-0" placeholder="user@example.com" />
@@ -50,7 +50,7 @@
                     <div class="mb-4">
                         <label asp-for="FullName" class="form-label fw-500">Full Name</label>
                         <div class="input-group">
-                            <span class="input-group-text bg-white border-end-0" style="color: #9DCAEB;">
+                            <span class="input-group-text bg-white border-end-0" style="color: #6366f1;">
                                 <i class="fas fa-user"></i>
                             </span>
                             <input asp-for="FullName" class="form-control border-start-0" placeholder="John Doe" />
@@ -61,7 +61,7 @@
                     <div class="mb-4">
                         <label asp-for="Department" class="form-label fw-500">Department</label>
                         <div class="input-group">
-                            <span class="input-group-text bg-white border-end-0" style="color: #9DCAEB;">
+                            <span class="input-group-text bg-white border-end-0" style="color: #6366f1;">
                                 <i class="fas fa-building"></i>
                             </span>
                             <select asp-for="Department" id="DepartmentSelect" class="form-select border-start-0">
@@ -78,7 +78,7 @@
                      @*<div class="mb-4">
                         <label asp-for="Section" class="form-label fw-500">Section</label>
                         <div class="input-group">
-                            <span class="input-group-text bg-white border-end-0" style="color: #0066cc;">
+                            <span class="input-group-text bg-white border-end-0" style="color: #4f46e5;">
                                 <i class="fas fa-sitemap"></i>
                             </span>
                             <select asp-for="Section" id="SectionSelect" class="form-select border-start-0" disabled>
@@ -96,7 +96,7 @@
                     <div class="mb-4">
                         <label asp-for="IsActive" class="form-label fw-500">Status</label>
                         <div class="input-group">
-                            <span class="input-group-text bg-white border-end-0" style="color: #9DCAEB;">
+                            <span class="input-group-text bg-white border-end-0" style="color: #6366f1;">
                                 <i class="fas fa-toggle-on"></i>
                             </span>
                             <select asp-for="IsActive" class="form-select border-start-0">
@@ -110,7 +110,7 @@
                     <div class="mb-4">
                         <label asp-for="Password" class="form-label fw-500">Password</label>
                         <div class="input-group">
-                            <span class="input-group-text bg-white border-end-0" style="color: #9DCAEB;">
+                            <span class="input-group-text bg-white border-end-0" style="color: #6366f1;">
                                 <i class="fas fa-lock"></i>
                             </span>
                             <input asp-for="Password" class="form-control border-start-0" placeholder="Enter password" />
@@ -122,7 +122,7 @@
                     <div class="mb-4">
                         <label asp-for="ConfirmPassword" class="form-label fw-500">Confirm Password</label>
                         <div class="input-group">
-                            <span class="input-group-text bg-white border-end-0" style="color: #9DCAEB;">
+                            <span class="input-group-text bg-white border-end-0" style="color: #6366f1;">
                                 <i class="fas fa-lock"></i>
                             </span>
                             <input asp-for="ConfirmPassword" class="form-control border-start-0" placeholder="Confirm password" />
@@ -134,7 +134,7 @@
                         <div class="form-check form-switch">
                             <input asp-for="MustChangePassword" class="form-check-input" type="checkbox" role="switch" id="mustChangePasswordSwitch" />
                             <label class="form-check-label" for="mustChangePasswordSwitch">
-                                <i class="fas fa-key me-1" style="color:#9DCAEB;"></i>
+                                <i class="fas fa-key me-1" style="color:#6366f1;"></i>
                                 <span asp-for="MustChangePassword"></span> - บังคับเปลี่ยนรหัสผ่านเมื่อ login ครั้งถัดไป
                             </label>
                         </div>
@@ -144,7 +144,7 @@
 
                     <div class="mb-4">
                         <label class="form-label fw-500 d-block">
-                            <i class="fas fa-shield-alt me-2" style="color: #9DCAEB;"></i>Assign Roles
+                            <i class="fas fa-shield-alt me-2" style="color: #6366f1;"></i>Assign Roles
                         </label>
                         <div class="bg-light p-3 rounded border" style="border-color: #dee2e6;">
                             @if (Model.AvailableRoles.Count == 0)
@@ -184,7 +184,7 @@
         <div class="card border-0 shadow-sm bg-light">
             <div class="card-body">
                 <h5 class="card-title fw-bold mb-3">
-                    <i class="fas fa-info-circle me-2" style="color: #9DCAEB;"></i>Password Requirements
+                    <i class="fas fa-info-circle me-2" style="color: #6366f1;"></i>Password Requirements
                 </h5>
                 <ul class="list-unstyled small text-muted">
                     <li class="mb-2">
@@ -192,15 +192,15 @@
                         <strong>Minimum 8 characters</strong>
                     </li>
                     <li class="mb-2">
-                        <i class="fas fa-info-circle me-2" style="color: #9DCAEB;"></i>
+                        <i class="fas fa-info-circle me-2" style="color: #6366f1;"></i>
                         At least one uppercase letter
                     </li>
                     <li class="mb-2">
-                        <i class="fas fa-info-circle me-2" style="color: #9DCAEB;"></i>
+                        <i class="fas fa-info-circle me-2" style="color: #6366f1;"></i>
                         At least one lowercase letter
                     </li>
                     <li class="mb-2">
-                        <i class="fas fa-info-circle me-2" style="color: #9DCAEB;"></i>
+                        <i class="fas fa-info-circle me-2" style="color: #6366f1;"></i>
                         At least one digit
                     </li>
                 </ul>
@@ -208,12 +208,12 @@
                 <hr />
 
                 <h5 class="card-title fw-bold mb-3" >
-                    <i class="fas fa-users me-2" style="color: #9DCAEB;"></i>Available Roles
+                    <i class="fas fa-users me-2" style="color: #6366f1;"></i>Available Roles
                 </h5>
-                <ul class="list-unstyled small" style="background-colorcolor: #9DCAEB;">
+                <ul class="list-unstyled small" style="background-colorcolor: #6366f1;">
                     @foreach (var role in Model.AvailableRoles)
                     {
-                        <li class="mb-2" style="color: #9DCAEB;">
+                        <li class="mb-2" style="color: #6366f1;">
                             <span class="badge bg-primary">@role</span>
                         </li>
                     }
@@ -234,13 +234,13 @@
     }
 
     .form-check-input:checked {
-        background-color: #9DCAEB;
-        border-color: #9DCAEB;
+        background-color: #6366f1;
+        border-color: #6366f1;
     }
 
     .form-check-input:focus {
-        border-color: #9DCAEB;
-        box-shadow: 0 0 0 0.2rem rgba(157, 202, 235, 0.25);
+        border-color: #6366f1;
+        box-shadow: 0 0 0 0.2rem rgba(99, 102, 241, 0.25);
     }
 </style>
 

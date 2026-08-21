@@ -22,7 +22,8 @@ public class RepairTicketsController(AppDbContext context, UserManager<Applicati
     private readonly AppDbContext _context = context;
     private readonly UserManager<ApplicationUser> _userManager = userManager;
 
-    public async Task<IActionResult> Index(string? status, string? sort, string? dir)
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public async Task<IActionResult> Index(string? status, string? sort, string? dir, string? keyword)
     {
         var query = _context.RepairTickets.AsNoTracking().AsQueryable();
         var canSeeInProgress = User.IsInRole(AppRoles.Admin) || User.IsInRole(AppRoles.ITSupport);
@@ -92,6 +93,16 @@ public class RepairTicketsController(AppDbContext context, UserManager<Applicati
                             || (!string.IsNullOrWhiteSpace(currentUserFullName) && ticket.CreatedByName == currentUserFullName)
                             || (!string.IsNullOrWhiteSpace(currentUserUserName) && ticket.CreatedByName == currentUserUserName)
                             || (!string.IsNullOrWhiteSpace(currentUserEmail) && ticket.CreatedByName == currentUserEmail)
+                        ))
+                    // Also show tickets where the user is the assigned IT person, so that when an
+                    // IT Support user changes the status and saves, the record appears immediately
+                    // in the Index list without requiring a manual page refresh.
+                    || (!string.IsNullOrWhiteSpace(currentUserId) && ticket.AssignedItUserId == currentUserId)
+                    || (string.IsNullOrWhiteSpace(ticket.AssignedItUserId)
+                        && (
+                            (!string.IsNullOrWhiteSpace(currentUserFullName) && ticket.AssignedItName == currentUserFullName)
+                            || (!string.IsNullOrWhiteSpace(currentUserUserName) && ticket.AssignedItName == currentUserUserName)
+                            || (!string.IsNullOrWhiteSpace(currentUserEmail) && ticket.AssignedItName == currentUserEmail)
                         )));
             }
         }
@@ -108,6 +119,20 @@ public class RepairTicketsController(AppDbContext context, UserManager<Applicati
         {
             // No status filter selected: show all statuses, including Closed.
         }
+
+        var trimmedKeyword = keyword?.Trim() ?? string.Empty;
+        if (!string.IsNullOrWhiteSpace(trimmedKeyword))
+        {
+            query = query.Where(ticket =>
+                EF.Functions.Like(ticket.RequesterName, $"%{trimmedKeyword}%")
+                || EF.Functions.Like(ticket.Department, $"%{trimmedKeyword}%")
+                || EF.Functions.Like(ticket.DocumentNo ?? string.Empty, $"%{trimmedKeyword}%")
+                || EF.Functions.Like(ticket.DeviceName, $"%{trimmedKeyword}%")
+                || EF.Functions.Like(ticket.IssueDescription, $"%{trimmedKeyword}%")
+                || EF.Functions.Like(ticket.NextApproverName ?? string.Empty, $"%{trimmedKeyword}%")
+                || EF.Functions.Like(ticket.NextApproverDepartment ?? string.Empty, $"%{trimmedKeyword}%"));
+        }
+        ViewData["Keyword"] = trimmedKeyword;
 
         var currentSort = string.IsNullOrWhiteSpace(sort) ? "created" : sort.Trim().ToLowerInvariant();
         var currentDir = string.Equals(dir, "asc", StringComparison.OrdinalIgnoreCase) ? "asc" : "desc";
@@ -1007,6 +1032,22 @@ public class RepairTicketsController(AppDbContext context, UserManager<Applicati
         ViewData["CanEditStatusByUser"] = canEditStatusByUser;
         ViewData["CanMarkCompleteByAssignee"] = canMarkCompleteByAssignee;
 
+        // Determine if the current user is the assigned IT person (CurrentUserId == AssignedItName).
+        // Uses the same comprehensive comparison pattern as Index/MyTasks actions:
+        // matches by AssignedItUserId, or by AssignedItName against FullName/UserName/Email.
+        var isCurrentUserAssignedIt = currentUser is not null
+            && !string.IsNullOrWhiteSpace(ticket.AssignedItUserId)
+            && (
+                string.Equals(ticket.AssignedItUserId, currentUser.Id, StringComparison.Ordinal)
+                || (!string.IsNullOrWhiteSpace(currentUser.FullName)
+                    && string.Equals(ticket.AssignedItName, currentUser.FullName, StringComparison.Ordinal))
+                || (!string.IsNullOrWhiteSpace(currentUser.UserName)
+                    && string.Equals(ticket.AssignedItName, currentUser.UserName, StringComparison.Ordinal))
+                || (!string.IsNullOrWhiteSpace(currentUser.Email)
+                    && string.Equals(ticket.AssignedItName, currentUser.Email, StringComparison.Ordinal))
+            );
+        ViewData["IsCurrentUserAssignedIt"] = isCurrentUserAssignedIt;
+
         var timelineStatuses = CollapseConsecutiveStatuses(timelineEntries.Select(entry => entry.ToStatus));
 
         var statusFlow = timelineStatuses.Count > 0
@@ -1169,7 +1210,7 @@ public class RepairTicketsController(AppDbContext context, UserManager<Applicati
             return NotFound();
         }
 
-        var existingTicket = await _context.RepairTickets.FirstOrDefaultAsync(existing => existing.Id == id);
+        RepairTicket? existingTicket = await _context.RepairTickets.FirstOrDefaultAsync(existing => existing.Id == id);
         if (existingTicket is null)
         {
             return NotFound();
@@ -1693,10 +1734,11 @@ public class RepairTicketsController(AppDbContext context, UserManager<Applicati
             
             existingTicket.SecondApproverUserId = currentUser.Id;
             existingTicket.Step = 2;
+            existingTicket.SecondApproverDepartment = currentUser.Department?.Trim() ?? string.Empty;
             existingTicket.SecondApproverName = !string.IsNullOrWhiteSpace(currentUser.FullName)
                 ? currentUser.FullName
                 : (currentUser.UserName ?? currentUser.Email ?? "Unknown");
-
+            existingTicket.SecondApproverDepartment = currentUser.Department?.Trim() ?? string.Empty;
 
             if (existingTicket.RepairType == RepairType.DriveAccessPermission)
             {
@@ -1723,21 +1765,61 @@ public class RepairTicketsController(AppDbContext context, UserManager<Applicati
                 existingTicket.DxFinalApproverName = !string.IsNullOrWhiteSpace(dxFinalApproverUser?.FullName)
                     ? dxFinalApproverUser.FullName
                     : (dxFinalApproverUser?.UserName ?? dxFinalApproverUser?.Email ?? "Unknown");
-                
+                existingTicket.DxFinalApproverDepartment = dxFinalApproverUser?.Department?.Trim() ?? string.Empty;
+
                 Console.WriteLine($"DEBUG: Set DxFinalApprover from dropdown - UserId: '{existingTicket.DxFinalApproverUserId}', Name: '{existingTicket.DxFinalApproverName}'");
             }
-            else
+             else
             {
                 // Fallback to current user if no dropdown selection was provided
                 existingTicket.DxFinalApproverUserId = currentUser.Id;
+                existingTicket.DxFinalApproverDepartment = currentUser.Department?.Trim() ?? string.Empty;
                 existingTicket.DxFinalApproverName = !string.IsNullOrWhiteSpace(currentUser.FullName)
                     ? currentUser.FullName
                     : (currentUser.UserName ?? currentUser.Email ?? "Unknown");
                 
                 Console.WriteLine($"DEBUG: No dropdown selection, fallback DxFinalApprover to current user: '{existingTicket.DxFinalApproverUserId}'");
             }
+
+            // Set NextApprover fields from DxFinalApprover values
+            // (ฝ่ายที่อนุมัติลำดับถัดไป และ ผู้อนุมัติลำดับถัดไป)
+            existingTicket.NextApproverUserId = existingTicket.DxFinalApproverUserId;
+            existingTicket.NextApproverName = existingTicket.DxFinalApproverName;
+            existingTicket.NextApproverDepartment = existingTicket.DxFinalApproverDepartment;
             
+            Console.WriteLine($"DEBUG: Updated NextApprover from DxFinalApprover - UserId: '{existingTicket.NextApproverUserId}', Name: '{existingTicket.NextApproverName}', Dept: '{existingTicket.NextApproverDepartment}'");
             Console.WriteLine($"DEBUG: Set/Updated SecondApproverUserId to current user: '{existingTicket.SecondApproverUserId}'");
+        }
+        else if (existingTicket.RepairType != RepairType.DriveAccessPermission
+            && canEditStatus
+            && currentUser != null
+            && originalStep == 1
+            && !string.IsNullOrWhiteSpace(existingTicket.ApproverUserId)
+            && !string.IsNullOrWhiteSpace(existingTicket.NextApproverUserId)
+            && currentUser.Id != existingTicket.ApproverUserId
+            && string.Equals(existingTicket.NextApproverUserId, currentUser.Id, StringComparison.Ordinal))
+        {
+            // Non-DriveAccess: When the NextApprover (DX user) approves, record DxFinalApprover
+            // Use the form-provided DxFinalApprover if available, otherwise default to current user
+            if (!string.IsNullOrWhiteSpace(dxFinalApproverUserIdFromForm))
+            {
+                existingTicket.DxFinalApproverUserId = dxFinalApproverUserIdFromForm;
+                var dxFinalApproverUser = await _userManager.FindByIdAsync(dxFinalApproverUserIdFromForm);
+                existingTicket.DxFinalApproverName = !string.IsNullOrWhiteSpace(dxFinalApproverUser?.FullName)
+                    ? dxFinalApproverUser.FullName
+                    : (dxFinalApproverUser?.UserName ?? dxFinalApproverUser?.Email ?? "Unknown");
+                existingTicket.DxFinalApproverDepartment = dxFinalApproverUser?.Department?.Trim() ?? string.Empty;
+            }
+            else
+            {
+                existingTicket.DxFinalApproverUserId = currentUser.Id;
+                existingTicket.DxFinalApproverDepartment = currentUser.Department?.Trim() ?? string.Empty;
+                existingTicket.DxFinalApproverName = !string.IsNullOrWhiteSpace(currentUser.FullName)
+                    ? currentUser.FullName
+                    : (currentUser.UserName ?? currentUser.Email ?? "Unknown");
+            }
+            existingTicket.Step = 2;
+            Console.WriteLine($"DEBUG: Non-DriveAccess NextApprover approved - DxFinalApprover UserId: '{existingTicket.DxFinalApproverUserId}', Name: '{existingTicket.DxFinalApproverName}', Dept: '{existingTicket.DxFinalApproverDepartment}'");
         }
 
         // If form didn't provide value, keep the existing value (set by auto-routing logic above)
@@ -1786,9 +1868,11 @@ public class RepairTicketsController(AppDbContext context, UserManager<Applicati
 
             existingTicket.ThirdApproverUserId = currentUser.Id;
             existingTicket.Step = 3;
+            existingTicket.ThirdApproverDepartment = currentUser.Department?.Trim() ?? string.Empty;
             existingTicket.ThirdApproverName = !string.IsNullOrWhiteSpace(currentUser.FullName)
                 ? currentUser.FullName
                 : (currentUser.UserName ?? currentUser.Email ?? "Unknown");
+            existingTicket.ThirdApproverDepartment = currentUser.Department?.Trim() ?? string.Empty;
 
 
             if (existingTicket.RepairType == RepairType.DriveAccessPermission)
@@ -2167,7 +2251,7 @@ public class RepairTicketsController(AppDbContext context, UserManager<Applicati
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    [Authorize(Roles = AppRoles.Approve)]
+    [Authorize]
     public async Task<IActionResult> CloseTicket(int id)
     {
         var currentUser = await _userManager.GetUserAsync(User);
@@ -2179,6 +2263,14 @@ public class RepairTicketsController(AppDbContext context, UserManager<Applicati
         }
 
         if (ticket.Status != TicketStatus.Complete)
+        {
+            return Forbid();
+        }
+
+        // Only IT with Approver role, Admin, or ticket owner (RequesterUserId) can close
+        var isItApprover = User.IsInRole(AppRoles.ITSupport) && User.IsInRole(AppRoles.Approve);
+        var isOwner = IsOwnerTicket(ticket, currentUser);
+        if (!isItApprover && !User.IsInRole(AppRoles.Admin) && !isOwner)
         {
             return Forbid();
         }

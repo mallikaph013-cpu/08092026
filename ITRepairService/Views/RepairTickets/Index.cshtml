@@ -15,6 +15,20 @@
     var canSeeInProgress = User.IsInRole(ITRepairService.Models.AppRoles.Admin)
         || User.IsInRole(ITRepairService.Models.AppRoles.ITSupport);
 
+    var waitingDxFinalApprovalCount = tickets.Count(ticket =>
+        ticket.Step == 2
+        && !string.IsNullOrWhiteSpace(ticket.DxFinalApproverUserId)
+        && !string.IsNullOrWhiteSpace(ticket.SecondApproverUserId)
+        && !string.IsNullOrWhiteSpace(ticket.NextApproverUserId)
+        && string.Equals(ticket.NextApproverUserId, ticket.DxFinalApproverUserId, StringComparison.Ordinal)
+        && string.IsNullOrWhiteSpace(ticket.ThirdApproverUserId)
+        // For Non DriveAccessPermission: if DxFinalApproverName is set, the DX final approval is already done,
+        // so it should NOT be counted as waiting for DX final approval.
+        // For DriveAccessPermission: DxFinalApproverName being set does NOT mean the workflow is complete,
+        // there is still a Third approver (Step 3) that needs to approve, so those are still counted.
+        && (ticket.RepairType == ITRepairService.Models.RepairType.DriveAccessPermission
+            || string.IsNullOrWhiteSpace(ticket.DxFinalApproverName)));
+
     bool IsTicketOwner(ITRepairService.Models.RepairTicket ticket)
     {
         if (!string.IsNullOrWhiteSpace(currentUserId) && ticket.RequesterUserId == currentUserId)
@@ -50,9 +64,27 @@
     string GetStatusDisplay(ITRepairService.Models.RepairTicket ticket)
     {
         var status = ticket.Status;
-        return status == ITRepairService.Models.TicketStatus.Approved
-            ? "Approved (ผู้อนุมัติได้อนุมัติรายการ)"
-            : status.GetDisplayName();
+        if (status == ITRepairService.Models.TicketStatus.Approved)
+        {
+            if (ticket.Step == 1 && !string.IsNullOrWhiteSpace(ticket.ApproverName))
+            {
+                return $"{ticket.ApproverDepartment} อนุมัติรายการแล้ว";
+            }
+            if (ticket.Step == 2 && !string.IsNullOrWhiteSpace(ticket.SecondApproverName))
+            {
+                return $"{ticket.SecondApproverDepartment} อนุมัติรายการแล้ว";
+            }
+            if (ticket.Step == 3 && !string.IsNullOrWhiteSpace(ticket.ThirdApproverName))
+            {
+                return $"{ticket.ThirdApproverDepartment} อนุมัติรายการแล้ว";
+            }
+            if (!string.IsNullOrWhiteSpace(ticket.DxFinalApproverName))
+            {
+                return $"{ticket.DxFinalApproverDepartment} อนุมัติรายการแล้ว";
+            }
+            return "Approved (ผู้อนุมัติได้อนุมัติรายการ)";
+        }
+        return status.GetDisplayName();
     }
 
     string NextDir(string field)
@@ -62,6 +94,15 @@
 
     string GetApproverDisplay(ITRepairService.Models.RepairTicket ticket)
     {
+        if (!string.IsNullOrWhiteSpace(ticket.SecondApproverName)
+            && !string.IsNullOrWhiteSpace(ticket.DxFinalApproverDepartment))
+        {
+            return ticket.DxFinalApproverDepartment;
+        }
+        if (!string.IsNullOrWhiteSpace(ticket.NextApproverDepartment))
+        {
+            return ticket.NextApproverDepartment;
+        }
         if (latestStatusUpdatedBy.TryGetValue(ticket.Id, out var updater) && !string.IsNullOrWhiteSpace(updater))
         {
             return updater;
@@ -110,7 +151,13 @@
                         <p class="mb-0 opacity-90">Manage IT service requests efficiently</p>
                     </div>
                     <div class="d-flex align-items-center gap-2">
-                        <span class="badge rounded-pill bg-white text-primary px-3 py-2 fs-6">@tickets.Count Case</span>
+                        <span class="badge rounded-pill bg-white text-primary px-3 py-2 fs-6">@waitingDxFinalApprovalCount Case</span>
+                        @if (waitingDxFinalApprovalCount > 0)
+                        {
+                            <span class="badge rounded-pill bg-warning text-dark px-3 py-2 fs-6" title="จำนวนที่รออนุมัติ DX ขั้นสุดท้าย">
+                                <i class="fas fa-hourglass-half me-1"></i>@waitingDxFinalApprovalCount รออนุมัติ DX
+                            </span>
+                        }
                         <a asp-action="Create" class="btn btn-light fw-semibold btn-auto">
                             <i class="fas fa-plus me-2"></i>Create
                         </a>
@@ -123,6 +170,12 @@
     <div class="card card-filter shadow-sm mb-3">
         <div class="card-body py-3">
             <form method="get" class="row g-2 align-items-center">
+                <div class="col-12 col-md-4 col-lg-3">
+                    <label class="form-label mb-1">
+                        <i class="fas fa-search me-1"></i>Search
+                    </label>
+                    <input type="text" class="form-control" name="keyword" value="@ViewData["Keyword"]"/>
+                </div>
                 <div class="col-12 col-md-4 col-lg-3">
                     <label class="form-label mb-1">
                         <i class="fas fa-filter me-1"></i>Status
@@ -198,7 +251,10 @@
                         if (!canSeeInProgress && item.Status == ITRepairService.Models.TicketStatus.InProgress) canEditTicket = false;
 
                         var canCloseTicket = item.Status == ITRepairService.Models.TicketStatus.Complete
-                            && (User.IsInRole(ITRepairService.Models.AppRoles.Admin) || item.RequesterUserId == currentUserId || isRequesterByName);
+                            && ((User.IsInRole(ITRepairService.Models.AppRoles.ITSupport) && User.IsInRole(ITRepairService.Models.AppRoles.Approve))
+                                || User.IsInRole(ITRepairService.Models.AppRoles.Admin)
+                                || item.RequesterUserId == currentUserId
+                                || isRequesterByName);
 
                         var badgeClass = GetStatusBadgeClass(item.Status);
 
@@ -287,7 +343,7 @@
                                 </th>
                                 <th style="width: 140px; min-width: 120px;">Department</th>
                                 <th style="width: 130px; min-width: 110px;">Type</th>
-                                <th style="width: 160px; min-width: 140px;">Approver</th>
+                                <th style="width: 160px; min-width: 140px;">Next Approver</th>
                                 <th style="width: 120px; min-width: 100px;">Status</th>
                                 <th style="width: 130px; min-width: 110px;">
                                     <a asp-action="Index"
@@ -330,7 +386,10 @@
                                 if (!canSeeInProgress && item.Status == ITRepairService.Models.TicketStatus.InProgress) canEditTicket = false;
 
                                 var canCloseTicket = item.Status == ITRepairService.Models.TicketStatus.Complete
-                                    && (User.IsInRole(ITRepairService.Models.AppRoles.Admin) || item.RequesterUserId == currentUserId || isRequesterByName);
+                                    && ((User.IsInRole(ITRepairService.Models.AppRoles.ITSupport) && User.IsInRole(ITRepairService.Models.AppRoles.Approve))
+                                        || User.IsInRole(ITRepairService.Models.AppRoles.Admin)
+                                        || item.RequesterUserId == currentUserId
+                                        || isRequesterByName);
 
                                 var badgeClass = GetStatusBadgeClass(item.Status);
 
@@ -466,7 +525,7 @@
         };
         document.getElementById('closeTicketConfirmButton')?.addEventListener('click', function () {
             if (pendingCloseForm) pendingCloseForm.submit();
-        });
+        }); 
         document.getElementById('closeTicketConfirmModal')?.addEventListener('hidden.bs.modal', function () {
             pendingCloseForm = null;
         });

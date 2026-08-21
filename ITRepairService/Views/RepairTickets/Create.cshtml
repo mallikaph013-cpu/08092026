@@ -126,8 +126,8 @@
 
                     <hr class="my-4" />
 
-                    @* Approver fields - visible only for Drive Access Permission *@
-                    <div id="approverFieldsContainer" style="display: none;">
+                    @* Approver fields - visible for all repair types *@
+                    <div id="approverFieldsContainer">
                         <div class="mb-3">
                             <label class="form-label">
                                 <i class="fas fa-share me-1"></i>ฝ่ายอนุมัติลำดับถัดไป <span class="text-danger">*</span>
@@ -143,7 +143,7 @@
                             <label class="form-label">
                                 <i class="fas fa-user-check me-1"></i>ผู้อนุมัติลำดับถัดไป <span class="text-danger">*</span>
                             </label>
-                            <select asp-for="ApproverUserId" class="form-select" id="approverUserSelect" required>
+                            <select asp-for="ApproverUserId" class="form-select" id="approverUserSelect">
                                 <option value="">— Select approver —</option>
                                 @foreach (var approver in approverUsers)
                                 {
@@ -309,23 +309,25 @@
 
                 if (driveAccessDepartmentSelect && !isDriveAccess) {
                     driveAccessDepartmentSelect.value = '';
+                    driveAccessDepartmentSelect.required = false; // not required for non-DriveAccess
+                } else if (driveAccessDepartmentSelect) {
+                    driveAccessDepartmentSelect.required = true; // required for DriveAccess
                 }
 
-                // Show/hide approver fields based on repair type
+                // Show approver fields for all repair types
                 const approverFieldsContainer = document.getElementById('approverFieldsContainer');
                 if (approverFieldsContainer) {
-                    approverFieldsContainer.style.display = isDriveAccess ? '' : 'none';
+                    approverFieldsContainer.style.display = ''; // always visible
                 }
 
-                if (isDriveAccess) {
-                    // Step แรกในการสร้าง: ฝ่ายอนุมัติลำดับถัดไปต้องเป็นฝ่ายเดียวกันกับ User ผู้สร้างรายการ
-                    syncApproverDepartmentFromRequester();
-                } else {
-                    // Reset department select to default placeholder
-                    if (departmentSelect) {
-                        departmentSelect.value = '';
-                    }
+                // Only require approver selection for DriveAccess (controller auto-routes for others)
+                if (approverSelect) {
+                    approverSelect.required = isDriveAccess;
                 }
+
+                // Step แรกในการสร้าง: ฝ่ายอนุมัติลำดับถัดไปต้องเป็นฝ่ายเดียวกันกับ User ผู้สร้างรายการ
+                // สำหรับทุกประเภทการแจ้งซ่อม รวมถึงสิทธิ์การใช้งานเข้า Drive
+                syncApproverDepartmentFromRequester();
             }
 
             function syncApproverDepartmentFromRequester() {
@@ -470,12 +472,6 @@
             renderDriveAccessDepartment();
             renderApproverOptions();
             updateStatusApproverPreview();
-            
-            // For non-Drive Access types, ensure department select defaults to placeholder
-            // For Drive Access, the department is already auto-set to the requester's department
-            if (departmentSelect && !isDriveAccessRepairType()) {
-                departmentSelect.value = '';
-            }
         })();
     </script>
 }

@@ -51,9 +51,9 @@
     }
 
     .status-open {
-        background-color: #9DCAEB;
+        background-color: #6366f1;
         color: #ffffff;
-        border-color: #9DCAEB;
+        border-color: #6366f1;
     }
 
     .status-inprogress {
@@ -127,7 +127,7 @@
         width: 0.75rem;
         height: 0.75rem;
         border-radius: 50%;
-        background: #9DCAEB;
+        background: #6366f1;
         border: 2px solid #ffffff;
         box-shadow: 0 0 0 1px #b6cef3;
     }
@@ -135,7 +135,7 @@
 
 <div class="row g-3 mb-4">
     <div class="col-12">
-        <div class="card border-0 shadow-sm" style="background: linear-gradient(135deg, #9DCAEB 0%, #9DCAEB 100%); color: white;">
+        <div class="card border-0 shadow-sm" style="background: linear-gradient(135deg, #6366f1 0%, #6366f1 100%); color: white;">
             <div class="card-body py-4 d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
                 <div>
                     <h1 class="h2 fw-bold mb-1">
@@ -176,10 +176,10 @@
                         <div class="details-key mb-1">@Html.DisplayNameFor(model => model.RepairType)</div>
                         <div class="fw-semibold">@Model.RepairType</div>
                     </div>
-                    <div class="col-md-6">
+                    @* <div class="col-md-6">
                         <div class="details-key mb-1">@Html.DisplayNameFor(model => model.Step)</div>
                         <div class="fw-semibold">@Model.Step</div>
-                    </div>
+                    </div> *@
                     @* <div class="col-md-6">
                         <div class="details-key mb-1">@Html.DisplayNameFor(model => model.Priority)</div>
                         <div class="fw-semibold">@Model.Priority</div>

@@ -57,7 +57,7 @@
                             {
                                 <tr>
                                     <td class="ps-4">
-                                        <span class="badge rounded-pill" style="background: #9DCAEB; color: #1a3040; font-weight: 600;">
+                                        <span class="badge rounded-pill" style="background: #6366f1; color: #1a3040; font-weight: 600;">
                                             @item.Id
                                         </span>
                                     </td>
@@ -69,19 +69,19 @@
                                     </td>
                                     <td>
                                         <span class="fw-semibold" style="color: #3a4a5a;">
-                                            <i class="fas fa-user-circle me-1" style="color: #9DCAEB;"></i>@(item.CreatedByName ?? "-")
+                                            <i class="fas fa-user-circle me-1" style="color: #6366f1;"></i>@(item.CreatedByName ?? "-")
                                         </span>
                                     </td>
                                     <td>
                                         <span style="color: #4a6a7a;">
-                                            <i class="fas fa-clock me-1" style="color: #9DCAEB;"></i>@item.CreatedAt.ToLocalTime().ToString("dd MMM yyyy HH:mm")
+                                            <i class="fas fa-clock me-1" style="color: #6366f1;"></i>@item.CreatedAt.ToLocalTime().ToString("dd MMM yyyy HH:mm")
                                         </span>
                                     </td>
                                     <td>
                                         @if (!string.IsNullOrEmpty(item.AttachmentUrl))
                                         {
                                             <a href="@item.AttachmentUrl" target="_blank" class="btn btn-sm" 
-                                               style="border-radius: 999px; border: 1px solid #9DCAEB; background: rgba(157, 202, 235, 0.15); color: #2a5a7a; font-weight: 600; padding: 0.3rem 0.7rem; text-decoration: none;"
+                                               style="border-radius: 999px; border: 1px solid #6366f1; background: rgba(99, 102, 241, 0.15); color: #2a5a7a; font-weight: 600; padding: 0.3rem 0.7rem; text-decoration: none;"
                                                rel="noopener noreferrer">
                                                 <i class="fas fa-paperclip me-1"></i>@item.AttachmentFileName
                                             </a>

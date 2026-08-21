@@ -79,6 +79,10 @@ public class RepairTicket
     [Display(Name = "ชื่อผู้อนุมัติระดับ 2")]
     public string? SecondApproverName { get; set; }
 
+     [StringLength(100)]
+     [Display(Name = "ฝ่ายผู้อนุมัติระดับ 2")]
+     public string? SecondApproverDepartment { get; set; }
+
      [StringLength(450)]
      [Display(Name = "ผู้อนุมัติระดับ 3 (SM/DM ของฝ่ายที่ขอสิทธิ์ Drive)")]
      public string? ThirdApproverUserId { get; set; }
@@ -87,6 +91,10 @@ public class RepairTicket
      [Display(Name = "ชื่อผู้อนุมัติระดับ 3")]
      public string? ThirdApproverName { get; set; }
 
+     [StringLength(100)]
+     [Display(Name = "ฝ่ายผู้อนุมัติระดับ 3")]
+     public string? ThirdApproverDepartment { get; set; }
+
      [StringLength(450)]
      [Display(Name = "ผู้อนุมัติ DX (ขั้นตอนสุดท้าย)")]
      public string? DxFinalApproverUserId { get; set; }
@@ -94,6 +102,10 @@ public class RepairTicket
      [StringLength(150)]
      [Display(Name = "ชื่อผู้อนุมัติ DX (ขั้นตอนสุดท้าย)")]
      public string? DxFinalApproverName { get; set; }
+
+     [StringLength(100)]
+     [Display(Name = "ฝ่ายผู้อนุมัติ DX (ขั้นตอนสุดท้าย)")]
+     public string? DxFinalApproverDepartment { get; set; }
 
      [StringLength(450)]
      [Display(Name = "ผู้อนุมัติลำดับถัดไป")]
@@ -104,8 +116,10 @@ public class RepairTicket
      public string? NextApproverName { get; set; }
 
      [StringLength(100)]
-     [Display(Name = "ฝ่ายที่อนุมัติลำดับถัดไป")]
-     public string? NextApproverDepartment { get; set; }
+    [Display(Name = "ฝ่ายที่อนุมัติลำดับถัดไป")]
+    public string? NextApproverDepartment { get; set; }
+     
+ 
 
      [Display(Name = "ระดับการอนุมัติ")]
      public int ApprovalLevel { get; set; } = 1;

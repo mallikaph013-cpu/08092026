@@ -39,6 +39,7 @@
     var isApproveUser = User.IsInRole(ITRepairService.Models.AppRoles.Approve)
         && !User.IsInRole(ITRepairService.Models.AppRoles.ITSupport);
     var currentUserId = ViewData["CurrentUserId"]?.ToString() ?? string.Empty;
+    var isCurrentUserAssignedIt = ViewData["IsCurrentUserAssignedIt"] as bool? ?? false;
     var currentUserDepartment = ViewData["CurrentUserDepartment"]?.ToString() ?? string.Empty;
     var isDxUser = !string.IsNullOrWhiteSpace(currentUserDepartment)
         && currentUserDepartment.Trim().Equals("DX", StringComparison.OrdinalIgnoreCase);
@@ -64,6 +65,7 @@
         && Model.ApproverUserId != currentUserId
         && Model.SecondApproverUserId != currentUserId;
 
+    var originalTicketStatus = Model.Status;
     Model.Status = flowPrimaryStatus;
 
     string GetTicketStatusBaseDisplayName(ITRepairService.Models.TicketStatus status)
@@ -133,7 +135,7 @@
     }
 
     .header-card {
-        background: linear-gradient(135deg, #9DCAEB 0%, #9DCAEB 50%, #9DCAEB 100%);
+        background: linear-gradient(135deg, #6366f1 0%, #6366f1 50%, #6366f1 100%);
         border: none;
         border-radius: var(--border-radius-lg);
         position: relative;
@@ -298,7 +300,7 @@
     }
 
     .btn-primary {
-        background: linear-gradient(135deg, #9DCAEB, #b8d8f0);
+        background: linear-gradient(135deg, #6366f1, #818cf8);
         border: none;
         box-shadow: 0 4px 15px rgba(13, 110, 253, 0.3);
     }
@@ -559,7 +561,7 @@
 
                     @if (requesterEditMode)
                     {
-                        @if (Model.Status == ITRepairService.Models.TicketStatus.Complete)
+                        @if (originalTicketStatus == ITRepairService.Models.TicketStatus.Complete)
                         {
                             <div class="alert alert-info d-flex align-items-center gap-2">
                                 <i class="fas fa-check-circle fa-lg"></i>
@@ -690,7 +692,11 @@
                         <label class="form-label">
                             <i class="fas fa-share me-1"></i>ฝ่ายที่อนุมัติลำดับถัดไป
                         </label>
-                        @if (isRequesterEditOpen)
+                        @if (isCurrentUserAssignedIt)
+                        {
+                            <input asp-for="NextApproverDepartment" class="form-control" readonly />
+                        }
+                        else if (isRequesterEditOpen)
                         {
                             <input asp-for="NextApproverDepartment" class="form-control" readonly />
                         }
@@ -722,7 +728,17 @@
                         <span asp-validation-for="NextApproverDepartment" class="text-danger small"></span>
                     </div>
 
-                    @if (isRequesterEditOpen)
+                    @if (isCurrentUserAssignedIt)
+                    {
+                        <div class="mb-3">
+                            <label class="form-label">
+                                <i class="fas fa-user-check me-1"></i>ผู้อนุมัติลำดับถัดไป
+                            </label>
+                            <input asp-for="NextApproverName" class="form-control" readonly />
+                            <input type="hidden" asp-for="NextApproverUserId" />
+                        </div>
+                    }
+                    else if (isRequesterEditOpen)
                     {
                         <div class="mb-3">
                             <label class="form-label">
@@ -1027,13 +1043,13 @@
 
                     @if (requesterEditMode || !canEditStatus)
                     {
-                        @if (requesterEditMode && Model.Status == ITRepairService.Models.TicketStatus.Complete)
+                        @if (requesterEditMode && originalTicketStatus == ITRepairService.Models.TicketStatus.Complete)
                         {
                             <input type="hidden" name="Status" value="Closed" />
                         }
                         else
                         {
-                            <input type="hidden" asp-for="Status" />
+                            <input type="hidden" name="Status" value="@originalTicketStatus" />
                         }
                         @if (!requesterEditMode)
                         {
@@ -1097,7 +1113,7 @@
                                 <label asp-for="AssignedItUserId" class="form-label">
                                     <i class="fas fa-laptop-code me-1"></i>ผู้รับผิดชอบ (IT)
                                 </label>
-                                <select asp-for="AssignedItUserId" class="form-select" id="itAssignSelect">
+                                <select asp-for="AssignedItUserId" class="form-select" id="itAssignSelect" disabled="@isCurrentUserAssignedIt">
                                     <option value="">— Select IT assignee —</option>
                                     @foreach (var itUser in itSupportUsers)
                                     {
@@ -1119,6 +1135,10 @@
                                         }
                                     }
                                 </select>
+                                @if (isCurrentUserAssignedIt)
+                                {
+                                    <input type="hidden" asp-for="AssignedItUserId" />
+                                }
                                 <span asp-validation-for="AssignedItUserId" class="text-danger small"></span>
                             </div>
                         }
@@ -1156,7 +1176,7 @@
                                 </div>
                             }
 
-                            <input type="hidden" name="Status" value="@flowPrimaryStatus" id="statusHidden" />
+                            <input type="hidden" name="Status" value="@originalTicketStatus" id="statusHidden" />
 
                             @if (User.IsInRole(ITRepairService.Models.AppRoles.ITSupport) || User.IsInRole(ITRepairService.Models.AppRoles.Admin))
                             {
@@ -1225,7 +1245,7 @@
                                 <label asp-for="AssignedItUserId" class="form-label">
                                     <i class="fas fa-laptop-code me-1"></i>ผู้รับผิดชอบ (IT)
                                 </label>
-                                <select asp-for="AssignedItUserId" class="form-select" id="itAssignSelect">
+                                <select asp-for="AssignedItUserId" class="form-select" id="itAssignSelect" disabled="@isCurrentUserAssignedIt">
                                     <option value="">— Select IT assignee —</option>
                                     @foreach (var itUser in itSupportUsers)
                                     {
@@ -1247,6 +1267,10 @@
                                         }
                                     }
                                 </select>
+                                @if (isCurrentUserAssignedIt)
+                                {
+                                    <input type="hidden" asp-for="AssignedItUserId" />
+                                }
                                 <span asp-validation-for="AssignedItUserId" class="text-danger small"></span>
                             </div>
                         }
@@ -1277,19 +1301,19 @@
                                 <i class="fas fa-tag me-1"></i>สถานะ
                             </label>
                             <div class="d-flex align-items-center gap-3 flex-wrap">
-                                <span class="badge badge-status @GetStatusBadgeClass(flowPrimaryStatus)" id="statusBadge">
-                                    <i class="fas @GetStatusIcon(flowPrimaryStatus) me-1"></i>
-                                    <span id="statusBadgeText">@GetTicketStatusTimelineDisplayName(flowPrimaryStatus)</span>
+                                <span class="badge badge-status @GetStatusBadgeClass(originalTicketStatus)" id="statusBadge">
+                                    <i class="fas @GetStatusIcon(originalTicketStatus) me-1"></i>
+                                    <span id="statusBadgeText">@GetTicketStatusTimelineDisplayName(originalTicketStatus)</span>
                                 </span>
                                 <select class="form-select w-auto" id="statusDropdown" style="min-width: 200px;">
                                     @foreach (ITRepairService.Models.TicketStatus statusVal in Enum.GetValues(typeof(ITRepairService.Models.TicketStatus)))
                                     {
                                         if (statusVal == ITRepairService.Models.TicketStatus.Open) { continue; }
-                                        if (statusVal == ITRepairService.Models.TicketStatus.Closed && !User.IsInRole(ITRepairService.Models.AppRoles.Admin) && !User.IsInRole(ITRepairService.Models.AppRoles.ITSupport) && flowPrimaryStatus != ITRepairService.Models.TicketStatus.Complete) { continue; }
+                                        if (statusVal == ITRepairService.Models.TicketStatus.Closed && !User.IsInRole(ITRepairService.Models.AppRoles.Admin) && !User.IsInRole(ITRepairService.Models.AppRoles.ITSupport) && originalTicketStatus != ITRepairService.Models.TicketStatus.Complete) { continue; }
                                         if (statusVal == ITRepairService.Models.TicketStatus.InProgress && !canSeeInProgress) { continue; }
                                         if (statusVal == ITRepairService.Models.TicketStatus.Complete && !canSeeComplete) { continue; }
 
-                                        var isSelected = flowPrimaryStatus == statusVal;
+                                        var isSelected = originalTicketStatus == statusVal;
 
                                         @if (isSelected)
                                         {
@@ -1345,6 +1369,9 @@
         (function () {
             // Track if user clicked Approve button
             let hasClickedApprove = false;
+
+            // Flag: current user is the assigned IT person (fields should be read-only)
+            const isCurrentUserAssignedItJs = @(isCurrentUserAssignedIt ? "true" : "false");
             
             // DOM Elements
             const departmentSelect = document.getElementById('approverDepartmentSelect');
@@ -1617,7 +1644,8 @@
 
                     if (itAssignContainer && itAssignSelect) {
                         itAssignContainer.style.display = 'block';
-                        itAssignSelect.disabled = false;
+                        // Don't re-enable if current user is the assigned IT person (read-only)
+                        itAssignSelect.disabled = isCurrentUserAssignedItJs;
                     }
                     
                     // Show success message
@@ -1731,8 +1759,9 @@
                     const shouldShow = isItOrAdmin || isInProgress || (isDxApprover && isApproved);
 
                     itAssignContainer.style.display = shouldShow ? 'block' : 'none';
-                    itAssignSelect.disabled = !shouldShow;
-                    itAssignSelect.required = isInProgress;
+                    // Keep disabled when current user is the assigned IT person (read-only)
+                    itAssignSelect.disabled = !shouldShow || isCurrentUserAssignedItJs;
+                    itAssignSelect.required = isInProgress && !isCurrentUserAssignedItJs;
                 }
             }
 
