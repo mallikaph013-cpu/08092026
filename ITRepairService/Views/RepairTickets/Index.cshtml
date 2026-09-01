@@ -10,6 +10,7 @@
     var currentUserFullName = ViewData["CurrentUserFullName"]?.ToString();
     var currentUserUserName = ViewData["CurrentUserUserName"]?.ToString();
     var currentUserEmail = ViewData["CurrentUserEmail"]?.ToString();
+    var returnAction = ViewData["ReturnAction"]?.ToString() ?? "Index";
     var latestStatusUpdatedBy = ViewData["LatestStatusUpdatedBy"] as Dictionary<int, string>
         ?? new Dictionary<int, string>();
     var canSeeInProgress = User.IsInRole(ITRepairService.Models.AppRoles.Admin)
@@ -141,6 +142,7 @@
             ITRepairService.Models.TicketStatus.Rejected => "badge-rejected",
             ITRepairService.Models.TicketStatus.Complete => "badge-complete",
             ITRepairService.Models.TicketStatus.Closed => "badge-closed",
+            ITRepairService.Models.TicketStatus.Deleted => "badge-deleted",
             _ => "bg-secondary"
         };
     }
@@ -158,6 +160,10 @@
                         <p class="mb-0 opacity-90">Manage IT service requests efficiently</p>
                     </div>
                     <div class="d-flex align-items-center gap-2">
+                        @{
+                            var displayCount = tickets.Count(ticket => !(ticket.Status == ITRepairService.Models.TicketStatus.Open && IsTicketOwner(ticket)));
+                        }
+                        <span class="badge rounded-pill bg-white text-primary px-3 py-2 fs-6">@displayCount รายการ</span>
                         @* <span class="badge rounded-pill bg-white text-primary px-3 py-2 fs-6">รออนุมัติ @waitingDxFinalApprovalCount Case</span> *@
                         @if (waitingDxFinalApprovalCount > 0)
                         {
@@ -191,7 +197,8 @@
                         <option value="">All Statuses</option>
                         @foreach (ITRepairService.Models.TicketStatus status in Enum.GetValues(typeof(ITRepairService.Models.TicketStatus)))
                         {
-                            @* if (!canSeeInProgress && status == ITRepairService.Models.TicketStatus.InProgress) { continue; } *@
+                            @* Skip Deleted status in filter dropdown *@
+                            if (status == ITRepairService.Models.TicketStatus.Deleted) { continue; }
                             var isSelected = currentStatus == status.ToString();
                             <option value="@status" selected="@isSelected">@status.GetDisplayName()</option>
                         }
@@ -263,6 +270,10 @@
                                 || item.RequesterUserId == currentUserId
                                 || isRequesterByName);
 
+                        var canDeleteTicket = User.IsInRole(ITRepairService.Models.AppRoles.Admin)
+                            || ((item.RequesterUserId == currentUserId || isRequesterByName)
+                                && item.Status == ITRepairService.Models.TicketStatus.Open);
+
                         var badgeClass = GetStatusBadgeClass(item.Status);
 
                         <div class="mobile-ticket-card p-3 shadow-sm">
@@ -303,11 +314,11 @@
                             <div class="btn-group-action">
                                 @if (canEditTicket)
                                 {
-                                    <a asp-action="Edit" asp-route-id="@item.Id" class="btn btn-sm btn-outline-warning btn-auto">
+                                    <a asp-action="Edit" asp-route-id="@item.Id" asp-route-returnaction="@returnAction" class="btn btn-sm btn-outline-warning btn-auto">
                                         <i class="fas fa-pen me-1"></i>Edit
                                     </a>
                                 }
-                                <a asp-action="Details" asp-route-id="@item.Id" class="btn btn-sm btn-outline-info btn-auto">
+                                <a asp-action="Details" asp-route-id="@item.Id" asp-route-returnaction="@returnAction" class="btn btn-sm btn-outline-info btn-auto">
                                     <i class="fas fa-eye me-1"></i>Details
                                 </a>
                                 @if (canCloseTicket)
@@ -319,7 +330,7 @@
                                         </button>
                                     </form>
                                 }
-                                @if (User.IsInRole(ITRepairService.Models.AppRoles.Admin))
+                                @if (canDeleteTicket)
                                 {
                                     <form asp-action="ConfirmDelete" asp-route-id="@item.Id" method="post" style="display:inline;" onsubmit="return openDeleteTicketConfirm(this, event);">
                                         @Html.AntiForgeryToken()
@@ -340,7 +351,7 @@
                             <tr>
                                 <th class="ps-4" style="width: 120px;">Document No.</th>
                                 <th class="ps-4" style="width: 180px; min-width: 150px;">
-                                    <a asp-action="Index"
+                                    <a asp-action="@returnAction"
                                        asp-route-status="@currentStatus"
                                        asp-route-sort="requester"
                                        asp-route-dir="@NextDir("requester")"
@@ -353,7 +364,7 @@
                                 <th style="width: 160px; min-width: 140px;">Next Approver</th>
                                 <th style="width: 120px; min-width: 100px;">Status</th>
                                 <th style="width: 130px; min-width: 110px;">
-                                    <a asp-action="Index"
+                                    <a asp-action="@returnAction"
                                        asp-route-status="@currentStatus"
                                        asp-route-sort="created"
                                        asp-route-dir="@NextDir("created")"
@@ -398,6 +409,10 @@
                                         || item.RequesterUserId == currentUserId
                                         || isRequesterByName);
 
+                                var canDeleteTicket = User.IsInRole(ITRepairService.Models.AppRoles.Admin)
+                                    || ((item.RequesterUserId == currentUserId || isRequesterByName)
+                                        && item.Status == ITRepairService.Models.TicketStatus.Open);
+
                                 var badgeClass = GetStatusBadgeClass(item.Status);
 
                                 <tr>
@@ -432,11 +447,11 @@
                                         <div class="btn-group-action">
                                             @if (canEditTicket)
                                             {
-                                                <a asp-action="Edit" asp-route-id="@item.Id" class="btn btn-sm btn-outline-warning btn-auto">
+                                                <a asp-action="Edit" asp-route-id="@item.Id" asp-route-returnaction="@returnAction" class="btn btn-sm btn-outline-warning btn-auto">
                                                     <i class="fas fa-pen me-1"></i>
                                                 </a>
                                             }
-                                            <a asp-action="Details" asp-route-id="@item.Id" class="btn btn-sm btn-outline-info btn-auto">
+                                            <a asp-action="Details" asp-route-id="@item.Id" asp-route-returnaction="@returnAction" class="btn btn-sm btn-outline-info btn-auto">
                                                 <i class="fas fa-eye me-1"></i>
                                             </a>
                                             @if (canCloseTicket)
@@ -448,7 +463,7 @@
                                                     </button>
                                                 </form>
                                             }
-                                            @if (User.IsInRole(ITRepairService.Models.AppRoles.Admin))
+                                            @if (canDeleteTicket)
                                             {
                                                 <form asp-action="Delete" asp-route-id="@item.Id" method="post" style="display:inline;" onsubmit="return openDeleteTicketConfirm(this, event);">
                                                     @Html.AntiForgeryToken()

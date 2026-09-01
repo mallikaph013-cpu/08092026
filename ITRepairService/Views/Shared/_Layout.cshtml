@@ -42,6 +42,9 @@
                     
                     var assignedTicketCount = 0;
 
+                    // เน€เธเธเธฒเธฐ Admin เน€เธ—เนเธฒเธเธฑเนเธเธ—เธตเนเน€เธซเนเธเธฃเธฒเธขเธเธฒเธฃเธ—เธตเนเธขเธฑเธเนเธกเนเธกเธญเธเธซเธกเธฒเธข (unassigned) เนเธเธซเธเนเธฒ Index
+                    var isAdminUser = User.IsInRole(ITRepairService.Models.AppRoles.Admin);
+
                     
 
                     if (currentUser is not null)
@@ -64,8 +67,23 @@
                                                 var openNextStepCount = await DbContext.RepairTickets
                                                 .AsNoTracking()
                                                 .CountAsync(ticket =>
-                                                    (ticket.Status == TicketStatus.Open ||
+                                                    ((ticket.Status == TicketStatus.Open || 
                                                      ticket.Status == TicketStatus.Approved)
+                                                    
+                                                     && ticket.Status != TicketStatus.Closed // เธเธดเธ”เธเธฒเธเนเธฅเนเธง (Closed) เนเธกเนเธเธฑเธ
+                                                     && ticket.RequesterUserId != currentUserId
+                                                     && !(ticket.Status == TicketStatus.Approved && ticket.ApproverUserId == currentUserId)
+                                                     && !(ticket.Status == TicketStatus.Approved && ticket.ThirdApproverUserId == currentUserId) // dont count: CurrentUserId == ThirdApproverUserId && Status Approved
+                                                    && !(string.IsNullOrWhiteSpace(ticket.RequesterUserId)
+                                                        && (
+                                                            (!string.IsNullOrWhiteSpace(currentUserFullName) && ticket.RequesterName == currentUserFullName)
+                                                            || (!string.IsNullOrWhiteSpace(currentUserUserName) && ticket.RequesterName == currentUserUserName)
+                                                            || (!string.IsNullOrWhiteSpace(currentUserEmail) && ticket.RequesterName == currentUserEmail)
+                                                            || (!string.IsNullOrWhiteSpace(currentUserFullName) && ticket.CreatedByName == currentUserFullName)
+                                                            || (!string.IsNullOrWhiteSpace(currentUserUserName) && ticket.CreatedByName == currentUserUserName)
+                                                            || (!string.IsNullOrWhiteSpace(currentUserEmail) && ticket.CreatedByName == currentUserEmail)
+                                                        ))
+                                                    )
                                                     &&
                                                     (
                                                         (
@@ -74,11 +92,13 @@
                                                             && ticket.SecondApproverUserId != currentUserId
                                                             && ticket.ThirdApproverUserId != currentUserId
                                                             
+                                                            
                                                         )
                                                         ||
                                                         (
                                                             string.IsNullOrWhiteSpace(ticket.AssignedItUserId)
                                                             && ticket.RepairType != RepairType.DriveAccessPermission
+                                                            && isAdminUser // เธเธฑเธเน€เธเธเธฒเธฐ Admin เน€เธ—เนเธฒเธเธฑเนเธ (เธเธนเนเนเธเนเธ—เธตเนเนเธกเนเนเธเน Admin เธกเธญเธเนเธกเนเน€เธซเนเธเธฃเธฒเธขเธเธฒเธฃ unassigned เนเธเธซเธเนเธฒ Index)
                                                             
                                                         )
                                                     )
@@ -88,6 +108,8 @@
                             .AsNoTracking()
                             .Where(ticket =>
                                 ticket.Status == TicketStatus.Rejected
+                                && ticket.Status != TicketStatus.Closed // เธเธดเธ”เธเธฒเธเนเธฅเนเธง (Closed) เนเธกเนเธเธฑเธ
+                                && ticket.AssignedItUserId != currentUserId // เธฃเธฒเธขเธเธฒเธฃเธ—เธตเนเธกเธญเธเธซเธกเธฒเธขเนเธซเนเธ•เธฑเธงเน€เธญเธ (เธเนเธญเธเนเธ Index) เนเธกเนเธเธฑเธ
                                 && (
                                     (!string.IsNullOrWhiteSpace(currentUserId) && ticket.RequesterUserId == currentUserId)
                                     || (string.IsNullOrWhiteSpace(ticket.RequesterUserId)
@@ -147,6 +169,8 @@
                             .AsNoTracking()
                             .CountAsync(ticket =>
                                 ticket.Status == TicketStatus.Complete
+                                && ticket.Status != TicketStatus.Closed // เธเธดเธ”เธเธฒเธเนเธฅเนเธง (Closed) เนเธกเนเธเธฑเธ
+                                && ticket.AssignedItUserId != currentUserId // เธฃเธฒเธขเธเธฒเธฃเธ—เธตเนเธกเธญเธเธซเธกเธฒเธขเนเธซเนเธ•เธฑเธงเน€เธญเธ (เธเนเธญเธเนเธ Index) เนเธกเนเธเธฑเธ
                                 && (
                                     (!string.IsNullOrWhiteSpace(currentUserId) && ticket.RequesterUserId == currentUserId)
                                     || (string.IsNullOrWhiteSpace(ticket.RequesterUserId)
@@ -171,11 +195,11 @@
                                 ticket.Status == TicketStatus.Approved
                                 && (ticket.Step == 3 || ticket.Step == 2)
                                 && (ticket.ApprovalLevel == 1 || ticket.ApprovalLevel == 2)
-                                && (
-                                    (!string.IsNullOrWhiteSpace(currentUserId) && ticket.AssignedItUserId == currentUserId)
-                                    || (!string.IsNullOrWhiteSpace(currentUserFullName) && ticket.AssignedItName == currentUserFullName)
-                                    || (!string.IsNullOrWhiteSpace(currentUserUserName) && ticket.AssignedItName == currentUserUserName)
-                                    || (!string.IsNullOrWhiteSpace(currentUserEmail) && ticket.AssignedItName == currentUserEmail)));
+                                && (ticket.AssignedItUserId == currentUserId
+                                    || (string.IsNullOrEmpty(ticket.AssignedItUserId)
+                                        && ((!string.IsNullOrWhiteSpace(currentUserFullName) && ticket.AssignedItName == currentUserFullName)
+                                            || (!string.IsNullOrWhiteSpace(currentUserUserName) && ticket.AssignedItName == currentUserUserName)
+                                            || (!string.IsNullOrWhiteSpace(currentUserEmail) && ticket.AssignedItName == currentUserEmail)))));
 
                         assignedTicketCount = await DbContext.RepairTickets
                             .AsNoTracking()
@@ -274,9 +298,9 @@
             <p class="text-muted mb-0 text-center">&copy; 2026 - ASI IT Service. All rights reserved.</p>
         </div>
     </footer>
-    <script src="~/lib/jquery/dist/jquery.min.js"></script>
-    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="~/js/site.js"></script>
+    <script src="~/lib/jquery/dist/jquery.min.js" asp-append-version="true"></script>
+    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js" asp-append-version="true"></script>
+    <script src="~/js/site.js" asp-append-version="true"></script>
     @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>

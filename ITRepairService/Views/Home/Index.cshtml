@@ -24,29 +24,50 @@
             <div class="col-12">
                 <div class="card shadow-sm transition-hover h-100">
                     <div class="card-body d-flex flex-column">
-                        <h3 class="h5 fw-bold mb-2" style="color: #2a4050;">
+                        <h3 class="h5 fw-bold mb-3" style="color: #2a4050;">
                             <i class="fas fa-bullhorn me-2" style="color: #6366f1;"></i>@news.Title
                         </h3>
-                        <p class="mb-3 flex-grow-1" style="color: #4a6a7a; line-height: 1.6;">
-                            @(news.Content.Length > 180 ? $"{news.Content[..180]}..." : news.Content)
-                        </p>
-                        <div class="d-flex flex-wrap align-items-center gap-3 small" style="color: #6a8a9a;">
-                            <span>
-                                <i class="fas fa-user me-1" style="color: #6366f1;"></i>@(string.IsNullOrWhiteSpace(news.CreatedByName) ? "System" : news.CreatedByName)
-                            </span>
-                            <span>|</span>
-                            <span>
-                                <i class="fas fa-clock me-1" style="color: #6366f1;"></i>@news.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")
-                            </span>
+                        <div class="mb-3 flex-grow-1">
+                            @if (news.Content.Length > 180)
+                            {
+                                <div class="news-content-short" id="news-short-@news.Id" style="color: #4a6a7a; line-height: 1.8; margin-bottom: 0; white-space: pre-line; word-break: break-word; text-align: left;">
+                                    @(news.Content.Length > 180 ? $"{news.Content[..180]}..." : news.Content)
+                                </div>
+                                <div class="news-content-full" id="news-full-@news.Id" style="color: #4a6a7a; line-height: 1.8; display: none; margin-bottom: 0; white-space: pre-line; word-break: break-word; text-align: left;">
+                                    @news.Content
+                                </div>
+                                <a href="javascript:void(0);" class="news-toggle-link" data-id="@news.Id" style="color: #6366f1; font-weight: 500; font-size: 0.875rem; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; margin-top: 8px; padding: 4px 12px; border-radius: 999px; background: rgba(99, 102, 241, 0.08); transition: background 0.2s ease;">
+                                    <i class="fas fa-chevron-down" style="font-size: 0.7rem;"></i>อ่านเพิ่มเติม
+                                </a>
+                            }
+                            else
+                            {
+                                <div style="color: #4a6a7a; line-height: 1.8; white-space: pre-line; word-break: break-word; text-align: left;">
+                                    @news.Content
+                                </div>
+                            }
                         </div>
-                        @if (!string.IsNullOrWhiteSpace(news.AttachmentUrl))
-                        {
-                            <a href="@news.AttachmentUrl" class="btn btn-sm mt-3 align-self-start" 
-                               style="border-radius: 999px; border: 1px solid #6366f1; background: rgba(99, 102, 241, 0.12); color: #2a5a7a; font-weight: 500;"
-                               target="_blank" rel="noopener noreferrer">
-                                <i class="fas fa-paperclip me-1"></i>@(string.IsNullOrWhiteSpace(news.AttachmentFileName) ? "Download attachment" : news.AttachmentFileName)
-                            </a>
-                        }
+                        <div class="d-flex flex-wrap align-items-center gap-2 small border-top pt-3" style="color: #6a8a9a; border-color: rgba(99, 102, 241, 0.1) !important;">
+                            <span class="d-inline-flex align-items-center gap-1 px-2 py-1 rounded-pill" style="background: rgba(99, 102, 241, 0.06);">
+                                <i class="fas fa-user" style="color: #6366f1; font-size: 0.75rem;"></i>
+                                <span>@(string.IsNullOrWhiteSpace(news.CreatedByName) ? "System" : news.CreatedByName)</span>
+                            </span>
+                            <span style="color: #c0d0d8;">|</span>
+                            <span class="d-inline-flex align-items-center gap-1 px-2 py-1 rounded-pill" style="background: rgba(99, 102, 241, 0.06);">
+                                <i class="fas fa-clock" style="color: #6366f1; font-size: 0.75rem;"></i>
+                                <span>@news.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</span>
+                            </span>
+                            @if (!string.IsNullOrWhiteSpace(news.AttachmentUrl))
+                            {
+                                <span style="color: #c0d0d8;">|</span>
+                                <a href="@news.AttachmentUrl" class="d-inline-flex align-items-center gap-1 px-2 py-1 rounded-pill text-decoration-none"
+                                   style="background: rgba(99, 102, 241, 0.06); color: #6366f1; font-weight: 500;"
+                                   target="_blank" rel="noopener noreferrer">
+                                    <i class="fas fa-paperclip" style="font-size: 0.75rem;"></i>
+                                    <span>@(string.IsNullOrWhiteSpace(news.AttachmentFileName) ? "Download attachment" : news.AttachmentFileName)</span>
+                                </a>
+                            }
+                        </div>
                     </div>
                 </div>
             </div>
@@ -76,4 +97,33 @@ else
         transform: translateY(-4px);
         box-shadow: 0 0.5rem 1rem rgba(99, 102, 241, 0.20) !important;
     }
+
+    .news-toggle-link:hover {
+        background: rgba(99, 102, 241, 0.15) !important;
+    }
 </style>
+
+@section Scripts {
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            document.querySelectorAll('.news-toggle-link').forEach(function (link) {
+                link.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    var id = this.getAttribute('data-id');
+                    var shortContent = document.getElementById('news-short-' + id);
+                    var fullContent = document.getElementById('news-full-' + id);
+
+                    if (fullContent.style.display === 'none') {
+                        shortContent.style.display = 'none';
+                        fullContent.style.display = 'block';
+                        this.innerHTML = '<i class="fas fa-chevron-up" style="font-size: 0.7rem;"></i>แสดงน้อยลง';
+                    } else {
+                        shortContent.style.display = 'block';
+                        fullContent.style.display = 'none';
+                        this.innerHTML = '<i class="fas fa-chevron-down" style="font-size: 0.7rem;"></i>อ่านเพิ่มเติม';
+                    }
+                });
+            });
+        });
+    </script>
+}

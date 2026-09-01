@@ -39,6 +39,7 @@
     var isApproveUser = User.IsInRole(ITRepairService.Models.AppRoles.Approve)
         && !User.IsInRole(ITRepairService.Models.AppRoles.ITSupport);
     var currentUserId = ViewData["CurrentUserId"]?.ToString() ?? string.Empty;
+    var returnAction = ViewData["ReturnAction"]?.ToString() ?? "Index";
     var isCurrentUserAssignedIt = ViewData["IsCurrentUserAssignedIt"] as bool? ?? false;
     var currentUserDepartment = ViewData["CurrentUserDepartment"]?.ToString() ?? string.Empty;
     var isDxUser = !string.IsNullOrWhiteSpace(currentUserDepartment)
@@ -49,8 +50,15 @@
         || Model.Status == ITRepairService.Models.TicketStatus.Complete
         || Model.Status == ITRepairService.Models.TicketStatus.Closed;
     var lockPrimaryStatusSelection = !assigneeCompleteOnlyMode && (hasPriorStatusSteps || !canEditStatusByUser);
+    var originalTicketStatus = Model.Status;
     var isRequesterEditOpen = requesterEditMode && Model.Status == ITRepairService.Models.TicketStatus.Open;
-    var isRequesterEditLocked = requesterEditMode && Model.Status != ITRepairService.Models.TicketStatus.Open;
+    var isRequesterEditRejected = requesterEditMode && originalTicketStatus == ITRepairService.Models.TicketStatus.Rejected;
+    var isRequesterEditLocked = requesterEditMode && Model.Status != ITRepairService.Models.TicketStatus.Open && !isRequesterEditRejected;
+    var isNotRequesterAndOpen = !requesterEditMode
+        && !string.IsNullOrWhiteSpace(currentUserId)
+        && !string.IsNullOrWhiteSpace(Model.RequesterUserId)
+        && currentUserId != Model.RequesterUserId
+        && Model.Status == ITRepairService.Models.TicketStatus.Open;
     var isCurrentUserApproverStep1 = !string.IsNullOrWhiteSpace(Model.ApproverUserId)
         && Model.ApproverUserId == currentUserId
         && Model.Step == 1
@@ -68,8 +76,35 @@
         && Model.ApprovalLevel == 1
         && !string.IsNullOrWhiteSpace(Model.NextApproverUserId)
         && !string.IsNullOrWhiteSpace(Model.AssignedItUserId);
+    var isCurrentUserNextApproverLevel1 = !string.IsNullOrWhiteSpace(Model.NextApproverUserId)
+        && Model.NextApproverUserId == currentUserId
+        && Model.ApprovalLevel == 1
+        && Model.Status == ITRepairService.Models.TicketStatus.Open;
 
-    var originalTicketStatus = Model.Status;
+    // Save is only allowed while the current user has never pressed Approve on this ticket.
+    // Once the user has approved, the Save button is rendered as a disabled button instead.
+    var hasCurrentUserApproved = ViewData["HasCurrentUserApproved"] as bool? ?? false;
+    var canSave = !hasCurrentUserApproved;
+
+    // A pending approval-chain member who has not approved yet (e.g. the routed
+    // NextApprover waiting on an already Approved level-1 ticket) must keep a
+    // working Save button until they perform their own approval.
+    var isPendingChainApprover = !string.IsNullOrWhiteSpace(currentUserId)
+        && !hasCurrentUserApproved
+        && Model.NextApproverUserId == currentUserId;
+
+    // Lock saving when the ticket is already Approved at level 1 and the viewer
+    // is not the DX final approver - only the DX final approver can act on it.
+    // A pending NextApprover who never approved is still allowed to save/approve.
+    // Exception: the assigned IT user (CurrentUserId == AssignedItUserId) must
+    // always be able to Save their assigned ticket.
+    var isApprovedLevel1LockedForViewer = Model.Status == ITRepairService.Models.TicketStatus.Approved
+        && Model.ApprovalLevel == 1
+        && !string.IsNullOrWhiteSpace(currentUserId)
+        && currentUserId != Model.DxFinalApproverUserId
+        && !isPendingChainApprover
+        && !isCurrentUserAssignedIt;
+
     Model.Status = flowPrimaryStatus;
 
     string GetTicketStatusBaseDisplayName(ITRepairService.Models.TicketStatus status)
@@ -109,6 +144,7 @@
             ITRepairService.Models.TicketStatus.Rejected => "bg-danger",
             ITRepairService.Models.TicketStatus.Complete => "bg-primary",
             ITRepairService.Models.TicketStatus.Closed => "bg-secondary",
+            ITRepairService.Models.TicketStatus.Deleted => "bg-secondary",
             _ => "bg-secondary"
         };
     }
@@ -123,6 +159,7 @@
             ITRepairService.Models.TicketStatus.Rejected => "fa-times-circle",
             ITRepairService.Models.TicketStatus.Complete => "fa-check-double",
             ITRepairService.Models.TicketStatus.Closed => "fa-lock",
+            ITRepairService.Models.TicketStatus.Deleted => "fa-trash",
             _ => "fa-question-circle"
         };
     }
@@ -538,13 +575,13 @@
                     </h1>
                     <p class="mb-0 opacity-90 d-flex align-items-center gap-2">
                         <i class="fas fa-info-circle"></i> Update IT repair request
-                        <span class="badge badge-status @GetStatusBadgeClass(Model.Status)">
-                            <i class="fas @GetStatusIcon(Model.Status) me-1"></i>
-                            @GetTicketStatusBaseDisplayName(Model.Status)
+                        <span class="badge badge-status @GetStatusBadgeClass(originalTicketStatus)">
+                            <i class="fas @GetStatusIcon(originalTicketStatus) me-1"></i>
+                            @GetTicketStatusBaseDisplayName(originalTicketStatus)
                         </span>
                     </p>
                 </div>
-                <a asp-action="Index" class="btn btn-light fw-semibold px-4">
+                <a asp-action="@returnAction" class="btn btn-light fw-semibold px-4">
                     <i class="fas fa-arrow-left me-2"></i>Back to List
                 </a>
             </div>
@@ -556,11 +593,14 @@
     <div class="col-12">
         <div class="card form-card">
             <div class="card-body">
-                <form asp-action="Edit">
+                <form asp-action="Edit" id="editTicketForm">
                     <input type="hidden" asp-for="Id" />
                     <input type="hidden" asp-for="CreatedAt" />
                     <input type="hidden" asp-for="Priority" />
-                    <input type="hidden" asp-for="DeviceName" />
+                    @* Carry the originating list (MyTasks / Index / AssignedToMe) through the POST
+                       so that after Save the user is returned to the page they came from. Without
+                       this the POST action cannot know the source and defaults to Index. *@
+                    <input type="hidden" name="returnAction" value="@returnAction" />
                     <div asp-validation-summary="ModelOnly" class="alert alert-danger py-2 mb-3" style="display: none;" id="validationSummary"></div>
 
                     @if (requesterEditMode)
@@ -599,14 +639,36 @@
                         </div>
                     </div>
 
+                    @* @if (isApprovedOrBeyond || isNotRequesterAndOpen)
+                    {
+                        <div class="mb-3">
+                            <label asp-for="DeviceName" class="form-label">
+                                <i class="fas fa-desktop me-1"></i>ประเภทอุปกรณ์
+                            </label>
+                            <input asp-for="DeviceName" class="form-control" readonly />
+                            <span asp-validation-for="DeviceName" class="text-danger small"></span>
+                        </div>
+                    }
+                    else
+                    {
+                        <input type="hidden" asp-for="DeviceName" />
+                    } *@
+
+                    @* DeviceName is hidden from the UI but must still be posted: the model marks it
+                       [Required], so without this hidden field every Edit save fails validation. *@
+                    <input type="hidden" asp-for="DeviceName" />
+
                     <div class="form-row-grid">
                         <div class="mb-3">
                             <label asp-for="RepairType" class="form-label">
                                 <i class="fas fa-tools me-1"></i>ประเภทการแจ้งซ่อม
                             </label>
-                            @if (isApprovedOrBeyond)
+                            @if (isApprovedOrBeyond || isNotRequesterAndOpen)
                             {
-                                <select asp-for="RepairType" class="form-select" asp-items="Html.GetEnumSelectList<ITRepairService.Models.RepairType>()" disabled></select>
+                                @* Display name only (no name attribute => not posted) *@
+                                <input class="form-control" readonly value="@Model.RepairType.GetDisplayName()" />
+                                @* Post the numeric enum value back so model binding succeeds *@
+                                <input type="hidden" asp-for="RepairType" value="@((int)Model.RepairType)" />
                             }
                             else
                             {
@@ -624,34 +686,60 @@
                         </div> *@
                     </div>
 
+
+                    @if (!isDriveAccessRepairType)
+                    {
+                        <div class="mb-3">
+                            <label asp-for="DeviceName" class="form-label">
+                                <i class="fas fa-desktop me-1"></i>ประเภทอุปกรณ์
+                            </label>
+                            @if (requesterEditMode && Model.Status == ITRepairService.Models.TicketStatus.Open)
+                            {
+                                <input asp-for="DeviceName" class="form-control" />
+                            }
+                            else
+                            {
+                                <input asp-for="DeviceName" class="form-control" readonly />
+                            }
+                            <span asp-validation-for="DeviceName" class="text-danger small"></span>
+                        </div>
+                    }
+
                     @if (isDriveAccessRepairType && (!requesterEditMode || isRequesterEditOpen))
                     {
-                        var isDriveAccessReadOnly = Model.Status != ITRepairService.Models.TicketStatus.Open;
+                        // Read-only when the ticket is Approved/InProgress/Complete/Closed (isApprovedOrBeyond)
+                        // or when a non-requester views an Open ticket (isNotRequesterAndOpen).
+                        var isDriveAccessReadOnly = (isApprovedOrBeyond || isNotRequesterAndOpen)
+                            || Model.Status != ITRepairService.Models.TicketStatus.Open;
                         var driveAccessDepartmentList = driveAccessDepartments
                             .Select(item => item.Text)
                             .Where(text => !string.IsNullOrWhiteSpace(text))
                             .Distinct()
                             .OrderBy(text => text)
                             .ToList();
-                        <div class="mb-3" id="driveAccessDepartmentGroup">
-                            <label asp-for="DriveAccessDepartment" class="form-label">
-                                <i class="fas fa-folder-open me-1"></i>ฝ่ายที่ต้องการขอสิทธิ์ Drive
-                            </label>
-                            <select asp-for="DriveAccessDepartment" class="form-select" id="driveAccessDepartmentSelect" disabled="@isDriveAccessReadOnly">
-                                <option value="">— เลือกฝ่าย —</option>
-                                @foreach (var dept in driveAccessDepartmentList)
-                                {
-                                    var isDeptSelected = string.Equals(Model.DriveAccessDepartment?.Trim(), dept, StringComparison.OrdinalIgnoreCase);
-                                    @if (isDeptSelected)
-                                    {
-                                        <option value="@dept" selected>@dept</option>
-                                    }
-                                    else
-                                    {
-                                        <option value="@dept">@dept</option>
-                                    }
-                                }
-                            </select>
+
+                            <div class="mb-3" id="driveAccessDepartmentGroup">
+                                
+                                <label asp-for="DriveAccessDepartment" class="form-label">
+                                    <i class="fas fa-folder-open me-1"></i>ฝ่ายที่ต้องการขอสิทธิ์ Drive
+                                </label>
+
+                      
+                                    <select asp-for="DriveAccessDepartment" class="form-select" id="driveAccessDepartmentSelect" disabled="@isDriveAccessReadOnly">
+                                        <option value="">— เลือกฝ่าย —</option>
+                                        @foreach (var dept in driveAccessDepartmentList)
+                                        {
+                                            var isDeptSelected = string.Equals(Model.DriveAccessDepartment?.Trim(), dept, StringComparison.OrdinalIgnoreCase);
+                                            @if (isDeptSelected)
+                                            {
+                                                <option value="@dept" selected>@dept</option>
+                                            }
+                                            else
+                                            {
+                                                <option value="@dept">@dept</option>
+                                            }
+                                        }
+                                    </select>
                             <span asp-validation-for="DriveAccessDepartment" class="text-danger small"></span>
                         </div>
                     }
@@ -660,7 +748,7 @@
                         <label asp-for="IssueDescription" class="form-label">
                             <i class="fas fa-align-left me-1"></i>รายละเอียดปัญหา
                         </label>
-                        @if (isApprovedOrBeyond)
+                        @if (isApprovedOrBeyond || isNotRequesterAndOpen)
                         {
                             <textarea asp-for="IssueDescription" class="form-control" rows="4" readonly></textarea>
                         }
@@ -696,13 +784,19 @@
                         <label class="form-label">
                             <i class="fas fa-share me-1"></i>ฝ่ายที่อนุมัติลำดับถัดไป
                         </label>
-                        @if (isCurrentUserAssignedIt)
+                        @if (originalTicketStatus == ITRepairService.Models.TicketStatus.Closed
+                            || isCurrentUserAssignedIt
+                            || originalTicketStatus == ITRepairService.Models.TicketStatus.Approved)
                         {
                             <input asp-for="NextApproverDepartment" class="form-control" readonly />
                         }
                         else if (isRequesterEditOpen)
                         {
                             <input asp-for="NextApproverDepartment" class="form-control" readonly />
+                        }
+                        else if (isCurrentUserNextApproverLevel1)
+                        {
+                            <input asp-for="NextApproverDepartment" class="form-control" readonly value="@Model.ApproverDepartment" id="approverDepartmentSelect" />
                         }
                         else if (isCurrentUserApproverStep1)
                         {
@@ -714,7 +808,7 @@
                             </div>
                         }
                         else if (isThirdPartyViewerStep2
-                            || requesterEditMode 
+                            || (requesterEditMode && !isRequesterEditRejected)
                             || ViewData["NextApproverFilterMode"]?.ToString() == "DX"
                             || isNonDriveNextApproverLocked
                             || (!string.IsNullOrWhiteSpace(Model.ApproverUserId) && string.IsNullOrWhiteSpace(Model.SecondApproverUserId)  && Model.Step == 2 ))
@@ -733,7 +827,9 @@
                         <span asp-validation-for="NextApproverDepartment" class="text-danger small"></span>
                     </div>
 
-                    @if (isCurrentUserAssignedIt)
+                    @if (originalTicketStatus == ITRepairService.Models.TicketStatus.Closed
+                        || isCurrentUserAssignedIt
+                        || originalTicketStatus == ITRepairService.Models.TicketStatus.Approved)
                     {
                         <div class="mb-3">
                             <label class="form-label">
@@ -797,6 +893,16 @@
                             <input type="hidden" asp-for="NextApproverUserId" />
                         </div>
                     }
+                    else if (isCurrentUserNextApproverLevel1)
+                    {
+                        <div class="mb-3">
+                            <label class="form-label">
+                                <i class="fas fa-user-check me-1"></i>ผู้อนุมัติลำดับถัดไป
+                            </label>
+                            <input asp-for="NextApproverName" class="form-control" readonly />
+                            <input type="hidden" asp-for="NextApproverUserId" />
+                        </div>
+                    }
                     else if (isCurrentUserApproverStep1)
                     {
                         <div class="mb-3">
@@ -842,7 +948,7 @@
                         </div>
                     }
                     else if (isThirdPartyViewerStep2
-                            || requesterEditMode 
+                            || (requesterEditMode && !isRequesterEditRejected)
                             || ViewData["NextApproverFilterMode"]?.ToString() == "DX"
                             || (!string.IsNullOrWhiteSpace(Model.ApproverUserId) && string.IsNullOrWhiteSpace(Model.SecondApproverUserId)  && Model.Step == 2 ))
                        {
@@ -862,7 +968,8 @@
                             </label>
                             @{
                                 var isDxFilterMode = ViewData["NextApproverFilterMode"]?.ToString() == "DX";
-                                var isNextApproverLocked = !string.IsNullOrWhiteSpace(Model.ApproverUserId) 
+                                var isNextApproverLocked = !isRequesterEditRejected
+                                    && !string.IsNullOrWhiteSpace(Model.ApproverUserId) 
                                     && string.IsNullOrWhiteSpace(Model.SecondApproverUserId);
                             }
                             @if (isDxFilterMode)
@@ -947,7 +1054,7 @@
                         </div>
                     }
 
-                    @if (!requesterEditMode && ViewData["NextApproverFilterMode"]?.ToString() == "DX")
+                    @if (!requesterEditMode && ViewData["NextApproverFilterMode"]?.ToString() == "DX" || isCurrentUserNextApproverLevel1)
                     {
                         var directDxApprovers = ViewData["DirectDxApproverUsers"] as List<ITRepairService.Models.ApplicationUser>
                             ?? new List<ITRepairService.Models.ApplicationUser>();
@@ -961,10 +1068,13 @@
                         // Allow editing if:
                         // 1. Current user is the NextApproverUserId (before second approval)
                         // 2. OR Current user is the SecondApproverUserId (after second approval, can edit their own selection)
-                        var canEditThirdApprover = (!string.IsNullOrEmpty(Model.NextApproverUserId) 
+                        // 3. NOT if status is Closed (read-only)
+                        var isClosedDx = originalTicketStatus == ITRepairService.Models.TicketStatus.Closed;
+                        var canEditThirdApprover = !isClosedDx
+                            && ((!string.IsNullOrEmpty(Model.NextApproverUserId) 
                                 && Model.NextApproverUserId == ViewData["CurrentUserId"]?.ToString())
                             || (!string.IsNullOrEmpty(Model.SecondApproverUserId) 
-                                && Model.SecondApproverUserId == ViewData["CurrentUserId"]?.ToString());
+                                && Model.SecondApproverUserId == ViewData["CurrentUserId"]?.ToString()));
                         
                         <div class="mb-3">
                             <label class="form-label">
@@ -1075,21 +1185,69 @@
                             <label class="form-label">
                                 <i class="fas fa-gavel me-1"></i>การอนุมัติ
                             </label>
-                            <input type="hidden" name="Status" value="@flowPrimaryStatus" id="statusHidden" />
+                            <input type="hidden" name="Status" value="@originalTicketStatus" id="statusHidden" />
                             <div class="d-flex align-items-center gap-3 flex-wrap mb-2">
-                                <span class="badge badge-status @GetStatusBadgeClass(flowPrimaryStatus)" id="statusBadge">
-                                    <i class="fas @GetStatusIcon(flowPrimaryStatus) me-1"></i>
-                                    <span id="statusBadgeText">@GetTicketStatusTimelineDisplayName(flowPrimaryStatus)</span>
+                                <span class="badge badge-status @GetStatusBadgeClass(originalTicketStatus)" id="statusBadge">
+                                    <i class="fas @GetStatusIcon(originalTicketStatus) me-1"></i>
+                                    <span id="statusBadgeText">@GetTicketStatusTimelineDisplayName(originalTicketStatus)</span>
                                 </span>
                             </div>
                             <div class="btn-group-action">
-                                <button type="button" class="btn btn-success" id="approveBtn">
-                                    <i class="fas fa-check me-1"></i>Approve
-                                </button>
-                                <button type="button" class="btn btn-danger" id="rejectBtn">
-                                    <i class="fas fa-times me-1"></i>Reject
-                                </button>
+                                @{
+                                    var isClosed = originalTicketStatus == ITRepairService.Models.TicketStatus.Closed;
+                                    var isCurrentUserApproved = originalTicketStatus == ITRepairService.Models.TicketStatus.Approved
+                                        && !string.IsNullOrWhiteSpace(Model.ApproverUserId)
+                                        && Model.ApproverUserId == currentUserId;
+                                    var isApprovedByOther = originalTicketStatus == ITRepairService.Models.TicketStatus.Approved
+                                        && !isCurrentUserApproved;
+                                    // Second approver: the ticket is already Approved at level 1, the second
+                                    // approval slot is still open, and the viewer is neither the first approver
+                                    // nor the requester — they must still be able to press Approve.
+                                    var canSecondApproverAct = originalTicketStatus == ITRepairService.Models.TicketStatus.Approved
+                                        && string.IsNullOrWhiteSpace(Model.SecondApproverUserId)
+                                        && !string.Equals(Model.ApproverUserId, currentUserId, StringComparison.Ordinal)
+                                        && !string.Equals(Model.RequesterUserId, currentUserId, StringComparison.Ordinal);
+                                }
+                                @if (isClosed)
+                                {
+                                    <button type="button" class="btn btn-secondary" id="approveBtn" disabled>
+                                        <i class="fas fa-lock me-1"></i>Approved
+                                    </button>
+                                    <button type="button" class="btn btn-secondary" id="rejectBtn" disabled>
+                                        <i class="fas fa-lock me-1"></i>Rejected
+                                    </button>
+                                }
+                                else if (originalTicketStatus == ITRepairService.Models.TicketStatus.Approved && !canSecondApproverAct)
+                                {
+                                    @* Ticket already Approved and no second approval pending for this user *@
+                                    <button type="button" class="btn btn-secondary" id="approveBtn" disabled>
+                                        <i class="fas fa-check me-1"></i>Approved
+                                    </button>
+                                    <button type="button" class="btn btn-secondary" id="rejectBtn" disabled>
+                                        <i class="fas fa-lock me-1"></i>Rejected
+                                    </button>
+                                }
+                                else
+                                {
+                                    <button type="button" class="btn btn-success" id="approveBtn">
+                                        <i class="fas fa-check me-1"></i>Approve
+                                    </button>
+                                    <button type="button" class="btn btn-danger" id="rejectBtn">
+                                        <i class="fas fa-times me-1"></i>Reject
+                                    </button>
+                                }
                             </div>
+                        </div>
+
+                        <div class="mb-4 p-3 bg-danger bg-opacity-10 border border-danger rounded-3" id="rejectRemarkContainer" style="display: none;">
+                            <label for="rejectRemark" class="form-label fw-semibold text-danger">
+                                <i class="fas fa-exclamation-circle me-1"></i>หมายเหตุการตีกลับ
+                            </label>
+                            <textarea id="rejectRemark" name="rejectRemark" class="form-control border-danger" rows="3" maxlength="250" placeholder="ระบุเหตุผลที่ตีกลับ...">@ViewData["RejectRemark"]</textarea>
+                            <span class="text-danger small" data-valmsg-for="rejectRemark" data-valmsg-replace="true"></span>
+                            <small class="text-muted d-block mt-1">
+                                <i class="fas fa-info-circle me-1"></i>สถานะจะยังคงเป็น <strong>Rejected</strong> จนกว่าผู้แจ้งจะแก้ไขและบันทึกใหม่
+                            </small>
                         </div>
                     }
                     else if (isDxUser && User.IsInRole(ITRepairService.Models.AppRoles.Approve) && !User.IsInRole(ITRepairService.Models.AppRoles.ITSupport))
@@ -1162,24 +1320,29 @@
                     else if (!requesterEditMode && canEditStatus)
                     {
                         <div class="mb-3">
-                            <label asp-for="Status" class="form-label">
+                            @* <label asp-for="Status" class="form-label">
                                 <i class="fas fa-tag me-1"></i>สถานะ
                             </label>
                             @{
                                 var canSeeComplete = User.IsInRole(ITRepairService.Models.AppRoles.ITSupport)
                                     || User.IsInRole(ITRepairService.Models.AppRoles.Admin)
                                     || canMarkCompleteByAssignee;
-                            }
+                            } *@
 
-                            @if (showInitialOpenStatus)
+                            @* @if (showInitialOpenStatus)
                             {
                                 <div class="mb-2">
                                     <span class="badge badge-status bg-warning text-dark">
                                         <i class="fas @GetStatusIcon(ITRepairService.Models.TicketStatus.Open) me-1"></i>
-                                        @GetTicketStatusTimelineDisplayName(flowPrimaryStatus, ITRepairService.Models.TicketStatus.Open)
+                                        @GetTicketStatusBaseDisplayName(ITRepairService.Models.TicketStatus.Open)
+                                    </span>
+                                    <span class="mx-1 text-muted"><i class="fas fa-arrow-right"></i></span>
+                                    <span class="badge badge-status @GetStatusBadgeClass(originalTicketStatus)">
+                                        <i class="fas @GetStatusIcon(originalTicketStatus) me-1"></i>
+                                        @GetTicketStatusBaseDisplayName(originalTicketStatus)
                                     </span>
                                 </div>
-                            }
+                            } *@
 
                             <input type="hidden" name="Status" value="@originalTicketStatus" id="statusHidden" />
 
@@ -1189,60 +1352,76 @@
                             }
                             else
                             {
-                                <div class="mb-2">
-                                    <span class="badge badge-status @GetStatusBadgeClass(flowPrimaryStatus)">
-                                        <i class="fas @GetStatusIcon(flowPrimaryStatus) me-1"></i>
-                                        @GetTicketStatusTimelineDisplayName(flowPrimaryStatus)
-                                    </span>
-                                </div>
-                            }
-
-                            @if (isCurrentStatusApproved && !User.IsInRole(ITRepairService.Models.AppRoles.ITSupport) && !User.IsInRole(ITRepairService.Models.AppRoles.Admin))
-                            {
-                                <input type="hidden" asp-for="Status" />
-                            }
-
-                            @if (!assigneeCompleteOnlyMode)
-                            {
-                                <div id="additionalStatusSteps" class="mt-2">
-                                    @for (var i = 0; i < additionalApprovalStatuses.Count; i++)
+                                <div class="mb-2 d-flex align-items-center flex-wrap gap-2">
+                                    @{
+                                        // แสดง workflow chain: Open => Approved => InProgress => Complete => Close
+                                        // (เฉพาะสถานะที่ผ่านมาแล้วจนถึงสถานะปัจจุบัน)
+                                        var flowStatuses = new[]
+                                        {
+                                            ITRepairService.Models.TicketStatus.Open,
+                                            ITRepairService.Models.TicketStatus.Approved,
+                                            ITRepairService.Models.TicketStatus.InProgress,
+                                            ITRepairService.Models.TicketStatus.Complete,
+                                            ITRepairService.Models.TicketStatus.Closed
+                                        };
+                                        var flowIndexOfCurrent = System.Array.IndexOf(flowStatuses, originalTicketStatus);
+                                    }
+                                    @if (flowIndexOfCurrent >= 0)
                                     {
-                                        <div class="input-group mt-2 status-step-row existing-step-row">
-                                            <select name="approvalStatuses" class="form-select status-step-select existing-step-select" disabled>
-                                                <option value="">— Select next status step —</option>
-                                                @foreach (ITRepairService.Models.TicketStatus statusVal in Enum.GetValues(typeof(ITRepairService.Models.TicketStatus)))
-                                                {
-                                                    if (statusVal == ITRepairService.Models.TicketStatus.Open) { continue; }
-                                                    if (statusVal == ITRepairService.Models.TicketStatus.Closed) { continue; }
-                                                    if (statusVal == ITRepairService.Models.TicketStatus.InProgress && !canSeeInProgress) { continue; }
-                                                    if (statusVal == ITRepairService.Models.TicketStatus.Complete && !canSeeComplete) { continue; }
-
-                                                    var previousStatus = i == 0
-                                                        ? flowPrimaryStatus
-                                                        : additionalApprovalStatuses[i - 1];
-                                                    var isSelected = additionalApprovalStatuses[i] == statusVal;
-
-                                                    @if (isSelected)
-                                                    {
-                                                        <option value="@statusVal" selected>@GetTicketStatusTimelineDisplayName(statusVal, previousStatus)</option>
-                                                    }
-                                                    else
-                                                    {
-                                                        <option value="@statusVal">@GetTicketStatusTimelineDisplayName(statusVal, previousStatus)</option>
-                                                    }
-                                                }
-                                            </select>
-                                            <input type="hidden" name="approvalStatuses" value="@additionalApprovalStatuses[i]" class="existing-step-hidden" />
-                                            <button type="button" class="btn btn-outline-danger remove-status-step existing-step-remove" disabled>
-                                                <i class="fas fa-trash-can"></i>
-                                            </button>
-                                        </div>
+                                        for (var flowIdx = 0; flowIdx <= flowIndexOfCurrent; flowIdx++)
+                                        {
+                                            var flowStatus = flowStatuses[flowIdx];
+                                            if (flowIdx > 0)
+                                            {
+                                                <span class="mx-1 text-muted"><i class="fas fa-arrow-right"></i></span>
+                                            }
+                                            if (flowStatus == originalTicketStatus)
+                                            {
+                                                @* สถานะปัจจุบัน: แสดงสีเต็ม *@
+                                                <span class="badge badge-status @GetStatusBadgeClass(originalTicketStatus)">
+                                                    <i class="fas @GetStatusIcon(originalTicketStatus) me-1"></i>
+                                                    @GetTicketStatusBaseDisplayName(originalTicketStatus)
+                                                </span>
+                                            }
+                                            else
+                                            {
+                                                @* สถานะที่ผ่านมาแล้ว: แสดงสีจางลง *@
+                                                <span class="badge badge-status @GetStatusBadgeClass(flowStatus)" >
+                                                    <i class="fas @GetStatusIcon(flowStatus) me-1"></i>
+                                                    @GetTicketStatusBaseDisplayName(flowStatus)
+                                                </span>
+                                            }
+                                        }
+                                    }
+                                    else
+                                    {
+                                        @* กรณีสถานะไม่ตรงกับ flow (เช่น Rejected/Deleted): แสดง badge ตามสถานะจริง *@
+                                        <span class="badge badge-status @GetStatusBadgeClass(originalTicketStatus)">
+                                            <i class="fas @GetStatusIcon(originalTicketStatus) me-1"></i>
+                                            @GetTicketStatusBaseDisplayName(originalTicketStatus)
+                                        </span>
                                     }
                                 </div>
                             }
 
-                            <span asp-validation-for="Status" class="text-danger small"></span>
+                             @if (isCurrentStatusApproved && !User.IsInRole(ITRepairService.Models.AppRoles.ITSupport) && !User.IsInRole(ITRepairService.Models.AppRoles.Admin))
+                            {
+                                <input type="hidden" asp-for="Status" />
+                            }
+                            <span asp-validation-for="Status" class="text-danger small"></span> 
                         </div>
+
+
+                        @* <div class="mb-3">
+
+                             @if (isCurrentStatusApproved && !User.IsInRole(ITRepairService.Models.AppRoles.ITSupport) && !User.IsInRole(ITRepairService.Models.AppRoles.Admin))
+                            {
+                                <input type="hidden" asp-for="Status" />
+                            }
+                            <span asp-validation-for="Status" class="text-danger small"></span>
+
+                        </div> *@
+
 
                         @if (User.IsInRole(ITRepairService.Models.AppRoles.ITSupport) || User.IsInRole(ITRepairService.Models.AppRoles.Admin))
                         {
@@ -1284,7 +1463,7 @@
                             <input type="hidden" asp-for="AssignedItUserId" />
                         }
 
-                        <div class="mb-4 p-3 bg-danger bg-opacity-10 border border-danger rounded-3" id="rejectRemarkContainer" style="display: @(flowPrimaryStatus == ITRepairService.Models.TicketStatus.Rejected ? "block" : "none")">
+                        <div class="mb-4 p-3 bg-danger bg-opacity-10 border border-danger rounded-3" id="rejectRemarkContainer" style="display: none;">
                             <label for="rejectRemark" class="form-label fw-semibold text-danger">
                                 <i class="fas fa-exclamation-circle me-1"></i>หมายเหตุการตีกลับ
                             </label>
@@ -1305,32 +1484,111 @@
                             <label asp-for="Status" class="form-label">
                                 <i class="fas fa-tag me-1"></i>สถานะ
                             </label>
-                            <div class="d-flex align-items-center gap-3 flex-wrap">
-                                <span class="badge badge-status @GetStatusBadgeClass(originalTicketStatus)" id="statusBadge">
-                                    <i class="fas @GetStatusIcon(originalTicketStatus) me-1"></i>
-                                    <span id="statusBadgeText">@GetTicketStatusTimelineDisplayName(originalTicketStatus)</span>
-                                </span>
-                                <select class="form-select w-auto" id="statusDropdown" style="min-width: 200px;">
-                                    @foreach (ITRepairService.Models.TicketStatus statusVal in Enum.GetValues(typeof(ITRepairService.Models.TicketStatus)))
+                            <div class="d-flex align-items-center flex-wrap gap-2">
+                                @{
+                                    // แสดง workflow chain: Open => Approved => InProgress => Complete => Close
+                                    // (เฉพาะสถานะที่ผ่านมาแล้วจนถึงสถานะปัจจุบัน)
+                                    var flowStatuses = new[]
                                     {
-                                        if (statusVal == ITRepairService.Models.TicketStatus.Open) { continue; }
-                                        if (statusVal == ITRepairService.Models.TicketStatus.Closed && !User.IsInRole(ITRepairService.Models.AppRoles.Admin) && !User.IsInRole(ITRepairService.Models.AppRoles.ITSupport) && originalTicketStatus != ITRepairService.Models.TicketStatus.Complete) { continue; }
-                                        if (statusVal == ITRepairService.Models.TicketStatus.InProgress && !canSeeInProgress) { continue; }
-                                        if (statusVal == ITRepairService.Models.TicketStatus.Complete && !canSeeComplete) { continue; }
-
-                                        var isSelected = originalTicketStatus == statusVal;
-
-                                        @if (isSelected)
+                                        ITRepairService.Models.TicketStatus.Open,
+                                        ITRepairService.Models.TicketStatus.Approved,
+                                        ITRepairService.Models.TicketStatus.InProgress,
+                                        ITRepairService.Models.TicketStatus.Complete,
+                                        ITRepairService.Models.TicketStatus.Closed
+                                    };
+                                    var flowIndexOfCurrent = System.Array.IndexOf(flowStatuses, originalTicketStatus);
+                                }
+                                @if (flowIndexOfCurrent >= 0)
+                                {
+                                    for (var flowIdx = 0; flowIdx <= flowIndexOfCurrent; flowIdx++)
+                                    {
+                                        var flowStatus = flowStatuses[flowIdx];
+                                        if (flowIdx > 0)
                                         {
-                                            <option value="@statusVal" selected>@GetTicketStatusTimelineDisplayName(statusVal)</option>
+                                            <span class="mx-1 text-muted"><i class="fas fa-arrow-right"></i></span>
+                                        }
+                                        if (flowStatus == originalTicketStatus)
+                                        {
+                                            @* สถานะปัจจุบัน: แสดงสีเต็ม *@
+                                            <span class="badge badge-status @GetStatusBadgeClass(originalTicketStatus)" id="statusBadgeItAdmin">
+                                                <i class="fas @GetStatusIcon(originalTicketStatus) me-1"></i>
+                                                <span id="statusBadgeTextItAdmin">@GetTicketStatusBaseDisplayName(originalTicketStatus)</span>
+                                            </span>
                                         }
                                         else
                                         {
-                                            <option value="@statusVal">@GetTicketStatusTimelineDisplayName(statusVal)</option>
+                                            @* สถานะที่ผ่านมาแล้ว: แสดงสีจางลง *@
+                                            <span class="badge badge-status @GetStatusBadgeClass(flowStatus) opacity-50">
+                                                <i class="fas @GetStatusIcon(flowStatus) me-1"></i>
+                                                @GetTicketStatusBaseDisplayName(flowStatus)
+                                            </span>
                                         }
                                     }
-                                </select>
-                            </div>
+                                }
+                                else
+                                {
+                                    @* กรณีสถานะไม่ตรงกับ flow (เช่น Rejected/Deleted): แสดง badge ตามสถานะจริง *@
+                                    <span class="badge badge-status @GetStatusBadgeClass(originalTicketStatus)" id="statusBadgeItAdmin">
+                                        <i class="fas @GetStatusIcon(originalTicketStatus) me-1"></i>
+                                        <span id="statusBadgeTextItAdmin">@GetTicketStatusBaseDisplayName(originalTicketStatus)</span>
+                                    </span>
+                                }
+                                    @if (originalTicketStatus == ITRepairService.Models.TicketStatus.Closed)
+                                    {
+                                        <input type="text" class="form-control w-auto" value="@GetTicketStatusTimelineDisplayName(originalTicketStatus)" readonly style="min-width: 200px;" />
+                                    }
+                                    else
+                                    {
+                                        <select class="form-select w-auto" id="statusDropdown" style="min-width: 200px;">
+                                            @{
+                                                // สถานะตามลำดับ workflow ที่ถูกต้อง: Open => Approved => InProgress => Complete => Close
+                                                var flowStatusesForSelect = new[]
+                                                {
+                                                    ITRepairService.Models.TicketStatus.Open,
+                                                    ITRepairService.Models.TicketStatus.Approved,
+                                                    ITRepairService.Models.TicketStatus.InProgress,
+                                                    ITRepairService.Models.TicketStatus.Complete,
+                                                    ITRepairService.Models.TicketStatus.Closed
+                                                };
+                                                var flowIndexOfCurrentForSelect = System.Array.IndexOf(flowStatusesForSelect, originalTicketStatus);
+                                                var isItSupportOnly = User.IsInRole(ITRepairService.Models.AppRoles.ITSupport)
+                                                    && !User.IsInRole(ITRepairService.Models.AppRoles.Admin);
+
+                                                for (var flowIdxSel = 0; flowIdxSel < flowStatusesForSelect.Length; flowIdxSel++)
+                                                {
+                                                    var statusVal = flowStatusesForSelect[flowIdxSel];
+                                                    // ไม่แสดงสถานะที่ย้อนกลับไปก่อนสถานะปัจจุบัน (ห้ามถอยหลังใน flow)
+                                                    if (flowIndexOfCurrentForSelect >= 0 && flowIdxSel < flowIndexOfCurrentForSelect)
+                                                    {
+                                                        continue;
+                                                    }
+                                                    // ITSupport ทั่วไป (ไม่ใช่ Admin) เปลี่ยนสถานะงานได้เฉพาะ InProgress และ Complete
+                                                    if (isItSupportOnly
+                                                        && statusVal != ITRepairService.Models.TicketStatus.InProgress
+                                                        && statusVal != ITRepairService.Models.TicketStatus.Complete)
+                                                    {
+                                                        continue;
+                                                    }
+                                                    // กรณีสถานะเป็น Closed ให้แสดงเป็นแบบอ่านอย่างเดียว (ไม่ให้เลือกเปลี่ยน)
+                                                    if (originalTicketStatus == ITRepairService.Models.TicketStatus.Closed)
+                                                    {
+                                                        continue;
+                                                    }
+                                                    var isSelected = originalTicketStatus == statusVal;
+
+                                                    @if (isSelected)
+                                                    {
+                                                        <option value="@statusVal" selected>@GetTicketStatusTimelineDisplayName(statusVal)</option>
+                                                    }
+                                                    else
+                                                    {
+                                                        <option value="@statusVal">@GetTicketStatusTimelineDisplayName(statusVal)</option>
+                                                    }
+                                                }
+                                            }
+                                        </select>
+                                    }
+                                </div>
                             <span asp-validation-for="Status" class="text-danger small"></span>
                         </div>
                     }
@@ -1345,8 +1603,9 @@
                             <div class="alert-popup-body">
                                 <p id="alertPopupMessage"></p>
                             </div>
-                            <div class="alert-popup-footer">
-                                <button type="button" class="btn btn-primary" id="alertPopupClose">ตกลง</button>
+                            <div class="alert-popup-footer d-flex gap-2">
+                                <button type="button" class="btn btn-success flex-fill" id="alertPopupConfirm">Yes</button>
+                                <button type="button" class="btn btn-danger flex-fill" id="alertPopupCancel">No</button>
                             </div>
                         </div>
                     </div>
@@ -1354,11 +1613,33 @@
                     <hr class="my-4" />
 
                     <div class="d-flex gap-3 flex-wrap">
-                        <button type="submit" class="btn btn-primary px-5" id="saveBtn">
-                            <i class="fas fa-save me-2"></i>Save
-                        </button>
-                        <a asp-action="Index" class="btn btn-secondary px-4">
-                            <i class="fas fa-times me-2"></i>Cancel
+                        @if (ViewData["IsClosedReadOnly"] as bool? ?? false)
+                        {
+                            <button type="button" class="btn btn-secondary px-5" disabled>
+                                <i class="fas fa-lock me-2"></i>Closed
+                            </button>
+                        }
+                        else if (isApprovedLevel1LockedForViewer)
+                        {
+                            <button type="button" class="btn btn-secondary px-5" disabled title="รายการได้รับการอนุมัติแล้ว รอผู้อนุมัติ DX ดำเนินการ">
+                                <i class="fas fa-lock me-2"></i>Approved
+                            </button>
+                        }
+                        else if (!canSave)
+                        {
+                            <button type="button" class="btn btn-secondary px-5" disabled
+                                    title="คุณได้อนุมัติรายการนี้ไปแล้ว ไม่สามารถบันทึกซ้ำได้">
+                                <i class="fas fa-lock me-2"></i>Save
+                            </button>
+                        }
+                        else
+                        {
+                            <button type="submit" class="btn btn-primary px-5" id="saveBtn">
+                                <i class="fas fa-save me-2"></i>Save
+                            </button>
+                        }
+                        <a asp-action="@returnAction" class="btn btn-secondary px-4">
+                            <i class="fas fa-times me-2"></i>Back to List
                         </a>
                     </div>
                 </form>
@@ -1385,7 +1666,9 @@
             const statusBadge = document.getElementById('statusBadge');
             const statusBadgeText = document.getElementById('statusBadgeText');
             const additionalStatusSteps = document.getElementById('additionalStatusSteps');
-            const editForm = document.querySelector('form[asp-action="Edit"]') || document.querySelector('form');
+            const editForm = document.getElementById('editTicketForm')
+                || document.querySelector('form[action*="Edit"]')
+                || document.querySelector('form');
             const approveBtn = document.getElementById('approveBtn');
             const rejectBtn = document.getElementById('rejectBtn');
             const remarkContainer = document.getElementById('rejectRemarkContainer');
@@ -1397,7 +1680,8 @@
             const saveBtn = document.getElementById('saveBtn');
             const alertPopup = document.getElementById('alertPopup');
             const alertPopupMessage = document.getElementById('alertPopupMessage');
-            const alertPopupClose = document.getElementById('alertPopupClose');
+            const alertPopupConfirm = document.getElementById('alertPopupConfirm');
+            const alertPopupCancel = document.getElementById('alertPopupCancel');
             const directNextApproverSelectEl = document.getElementById('directNextApproverSelect');
 
             // Validation summary auto-show
@@ -1493,8 +1777,11 @@
                 }
             }
 
-            if (alertPopupClose) {
-                alertPopupClose.addEventListener('click', hideAlertPopup);
+            if (alertPopupConfirm) {
+                alertPopupConfirm.addEventListener('click', hideAlertPopup);
+            }
+            if (alertPopupCancel) {
+                alertPopupCancel.addEventListener('click', hideAlertPopup);
             }
 
             // Alias for backward compatibility
@@ -1565,7 +1852,10 @@
                     const isDxMode = directNextApproverSelectEl !== null;
                     const nextApproverSelect = isDxMode ? directNextApproverSelectEl : approverSelect;
                     
-                    if (!nextApproverSelect || !nextApproverSelect.value) {
+                    // Drive Access tickets are routed to their first approver at creation, so the
+                    // next-approver dropdown may legitimately stay on the pre-filled (self) value
+                    // or be absent. Only other repair types must pick a next approver here.
+                    if ((!nextApproverSelect || !nextApproverSelect.value) && !isDriveAccess) {
                         showAlertModal('กรุณาเลือกผู้อนุมัติลำดับถัดไปก่อนอนุมัติ');
                         hasClickedApprove = false; // Reset flag
                         return;
@@ -1653,6 +1943,12 @@
                         itAssignSelect.disabled = isCurrentUserAssignedItJs;
                     }
                     
+                    // Disable Approve button after successful approval to prevent double click
+                    approveBtn.disabled = true;
+                    approveBtn.classList.remove('btn-success');
+                    approveBtn.classList.add('btn-secondary');
+                    approveBtn.innerHTML = '<i class="fas fa-check me-1"></i>Approved';
+                    
                     // Show success message
                     showAlertPopup('✅ คุณได้อนุมัติรายการนี้แล้ว\n\nกรุณากดปุ่ม Save เพื่อบันทึกข้อมูล');
                 });
@@ -1663,8 +1959,15 @@
                     // When rejecting, set status to Rejected
                     setApprovalStatus('Rejected', true);
                     
-                    // Show alert to inform user
-                    showAlertPopup('กรุณาระบุหมายเหตุการตีกลับ และกด Save เพื่อบันทึก');
+                    // Skip validation for NextApprover fields when rejecting
+                    // Disable the NextApproverDepartment and NextApproverUserId fields
+                    // so they won't be validated or required
+                    if (departmentSelect) {
+                        departmentSelect.disabled = true;
+                    }
+                    if (approverSelect) {
+                        approverSelect.disabled = true;
+                    }
                 });
             }
 
@@ -1757,85 +2060,167 @@
             // IT Assignee toggle
             function toggleItAssignField() {
                 if (itAssignContainer && itAssignSelect && statusHidden) {
+                    const isClosed = statusHidden.value === 'Closed';
                     const isInProgress = statusHidden.value === 'InProgress';
                     const isDxApprover = @(isDxUser ? "true" : "false");
                     const isApproved = statusHidden.value === 'Approved';
                     const isItOrAdmin = @(User.IsInRole(ITRepairService.Models.AppRoles.ITSupport) || User.IsInRole(ITRepairService.Models.AppRoles.Admin) ? "true" : "false");
-                    const shouldShow = isItOrAdmin || isInProgress || (isDxApprover && isApproved);
+                    const shouldShow = isItOrAdmin || isInProgress || (isDxApprover && isApproved) || isClosed;
 
                     itAssignContainer.style.display = shouldShow ? 'block' : 'none';
-                    // Keep disabled when current user is the assigned IT person (read-only)
-                    itAssignSelect.disabled = !shouldShow || isCurrentUserAssignedItJs;
+                    // Keep disabled when current user is the assigned IT person (read-only) or status is Closed
+                    itAssignSelect.disabled = !shouldShow || isCurrentUserAssignedItJs || isClosed;
                     itAssignSelect.required = isInProgress && !isCurrentUserAssignedItJs;
                 }
             }
 
             // Sync status dropdown with badge and hidden field
             const statusDropdown = document.getElementById('statusDropdown');
+            const statusBadgeItAdmin = document.getElementById('statusBadgeItAdmin');
+            const statusBadgeTextItAdmin = document.getElementById('statusBadgeTextItAdmin');
             if (statusDropdown && statusHidden) {
                 statusDropdown.addEventListener('change', () => {
                     const newValue = statusDropdown.value;
                     statusHidden.value = newValue;
                     updateStatusBadge(newValue);
+                    
+                    // Update IT Admin badge
+                    if (statusBadgeItAdmin && statusBadgeTextItAdmin) {
+                        const displayText = newValue === 'Approved' ? 'Approved (ผู้อนุมัติได้อนุมัติรายการ)' :
+                                            newValue === 'Rejected' ? 'Rejected (ผู้อนุมัติไม่อนุมัติรายการ)' :
+                                            newValue;
+                        statusBadgeTextItAdmin.textContent = displayText;
+                        Object.keys(statusBadgeClasses).forEach(key => {
+                            const classes = statusBadgeClasses[key];
+                            if (classes) {
+                                classes.split(' ').forEach(cls => {
+                                    if (cls) statusBadgeItAdmin.classList.remove(cls);
+                                });
+                            }
+                        });
+                        const badgeClass = statusBadgeClasses[newValue];
+                        if (badgeClass) {
+                            badgeClass.split(' ').forEach(cls => {
+                                if (cls) statusBadgeItAdmin.classList.add(cls);
+                            });
+                        }
+                        const icon = statusBadgeItAdmin.querySelector('i');
+                        if (icon) {
+                            Object.values(statusIcons).forEach(cls => {
+                                cls.split(' ').forEach(c => {
+                                    if (c) icon.classList.remove(c);
+                                });
+                            });
+                            statusIcons[newValue]?.split(' ').forEach(cls => {
+                                if (cls) icon.classList.add(cls);
+                            });
+                        }
+                    }
+                    
+                    // Show/hide reject remark container when status changes to/from Rejected
+                    if (remarkContainer) {
+                        remarkContainer.style.display = newValue === 'Rejected' ? 'block' : 'none';
+                    }
+                    if (remarkContainerDx) {
+                        remarkContainerDx.style.display = newValue === 'Rejected' ? 'block' : 'none';
+                    }
+                    if (remarkInput) {
+                        remarkInput.required = newValue === 'Rejected';
+                    }
+                    if (remarkInputDx) {
+                        remarkInputDx.required = newValue === 'Rejected';
+                    }
                 });
             }
 
-            // Save button loading state with validation
+            // Save button: validate then submit directly (no confirmation popup)
             const requesterEditModeJs = @(requesterEditMode ? "true" : "false");
             const isDifferentApproverStep1Js = @(isDifferentApproverStep1 ? "true" : "false");
-            
-            if (saveBtn && editForm) {
-                // Add click handler to Save button to validate BEFORE form submission
+            // True when CurrentUserId has already pressed Approve on this ticket (persisted state).
+            // In that case saving is not allowed anymore.
+            const hasCurrentUserApprovedJs = @(hasCurrentUserApproved ? "true" : "false");
+
+            if (saveBtn && hasCurrentUserApprovedJs) {
+                saveBtn.disabled = true;
+                saveBtn.classList.remove('btn-primary');
+                saveBtn.classList.add('btn-secondary');
+                saveBtn.title = 'คุณได้อนุมัติรายการนี้ไปแล้ว ไม่สามารถบันทึกซ้ำได้';
+            }
+
+            if (saveBtn) {
                 saveBtn.addEventListener('click', function(e) {
+                    // Block saving when the current user already approved this ticket
+                    if (hasCurrentUserApprovedJs) {
+                        e.preventDefault();
+                        showAlertPopup('⚠️ คุณได้อนุมัติรายการนี้ไปแล้ว ไม่สามารถบันทึกซ้ำได้');
+                        return false;
+                    }
+
+                    // Ensure the selected status from the dropdown is synced into the
+                    // hidden Status field before validation & submission.
+                    // The status dropdown itself has no name attribute, so it relies on
+                    // this sync to send the chosen InProgress/Complete/... value.
+                    const saveStatusDropdown = document.getElementById('statusDropdown');
+                    if (saveStatusDropdown && statusHidden && saveStatusDropdown.value) {
+                        statusHidden.value = saveStatusDropdown.value;
+                    }
+
+                    const currentStatus = statusHidden ? statusHidden.value : '';                    // Validate reject remark when status is Rejected
+                    if (currentStatus === 'Rejected') {
+                        const remarkValue = remarkInput ? remarkInput.value.trim() : '';
+                        const remarkValueDx = remarkInputDx ? remarkInputDx.value.trim() : '';
+                        if (!remarkValue && !remarkValueDx) {
+                            e.preventDefault();
+                            showAlertPopup('⚠️ กรุณาระบุหมายเหตุการตีกลับก่อนบันทึก');
+                            return false;
+                        }
+                        // Allow submission for Rejected status
+                        return true;
+                    }
+
                     // Validate approver department and user before saving (only for non-DX mode)
                     const isDxMode = directNextApproverSelectEl !== null;
-                    
-                    if (!isDxMode && !requesterEditModeJs && !isDifferentApproverStep1Js) {
-                        const currentUserDepartment = '@(ViewData["CurrentUserDepartment"]?.ToString() ?? string.Empty)';
-                        const currentUserId = '@(ViewData["CurrentUserId"]?.ToString() ?? string.Empty)';
-                        const selectedDepartment = departmentSelect ? departmentSelect.value : '';
-                        const selectedApprover = approverSelect ? approverSelect.value : '';
-                        
-                        console.log('DEBUG Save Button Click Validation:', {
-                            currentUserId: currentUserId,
-                            selectedApprover: selectedApprover,
-                            isSameUser: currentUserId && selectedApprover && currentUserId === selectedApprover
-                        });
-                        
-                        // Only validate if an approver is selected
-                        if (selectedApprover && currentUserId && !isDxMode) {
-                           // Check if the selected next approver is the same as current user
-                          //  This prevents a user from approving and routing to themselves
-                            if (currentUserId === selectedApprover) {
-                                e.preventDefault();
-                                console.log('DEBUG: Blocked - Same user as next approver');
-                                showAlertPopup('⚠️ ไม่สามารถบันทึกรายการได้ กรูณาเปลี่ยน ฝ่ายที่อนุมัติลำดับถัดไปและผู้อนุมัติลำดับถัดไปใหม่');
-                                return false;
-                            }
+
+                    // In DX mode: a DX final approver must be selected before saving
+                    if (isDxMode && !requesterEditModeJs) {
+                        const selectedDxApprover = directNextApproverSelectEl ? directNextApproverSelectEl.value : '';
+                        const hiddenDxField = document.getElementById('hiddenDxFinalApproverUserId');
+                        const dxFinalValue = selectedDxApprover || (hiddenDxField ? hiddenDxField.value : '');
+
+                        if (!dxFinalValue) {
+                            e.preventDefault();
+                            console.log('DEBUG: Blocked on save - No DX approver selected');
+                            showAlertPopup('⚠️ ไม่สามารถบันทึกรายการได้ กรุณาเลือกผู้อนุมัติ DX');
+                            return false;
                         }
                     }
-                });
-                
-                // Also add form submit handler as backup
-                editForm.addEventListener('submit', function(e) {
-                    const isDxMode = directNextApproverSelectEl !== null;
-                    
+
                     if (!isDxMode && !requesterEditModeJs && !isDifferentApproverStep1Js) {
                         const currentUserId = '@(ViewData["CurrentUserId"]?.ToString() ?? string.Empty)';
                         const selectedApprover = approverSelect ? approverSelect.value : '';
-                        
-                        // Double-check on form submit
-                        if (selectedApprover && currentUserId && currentUserId === selectedApprover) {
+                        // The value the ticket was routed with at creation (pre-filled dropdown).
+                        const routedNextApproverId = (approverSelect && approverSelect.dataset && approverSelect.dataset.selectedUserId) || '';
+
+                        // Block only genuine self-routing (actively changing the next approver to
+                        // yourself). When the ticket was routed TO the current user (Drive Access
+                        // first approver), the pre-filled value legitimately equals their own id
+                        // and must be allowed to save.
+                        const isRoutedSelf = !!(currentUserId && routedNextApproverId && currentUserId === routedNextApproverId);
+
+                        if (selectedApprover && currentUserId && currentUserId === selectedApprover && !isRoutedSelf) {
                             e.preventDefault();
-                            e.stopPropagation();
-                            console.log('DEBUG: Blocked on submit - Same user');
+                            console.log('DEBUG: Blocked on save - Same user');
                             showAlertPopup('⚠️ ไม่สามารถบันทึกรายการได้ เนื่องจากผู้อนุมัติลำดับถัดไป');
                             return false;
                         }
                     }
-                    
+
+                    // Show loading state and submit directly
+                    e.preventDefault();
                     saveBtn.disabled = true;
                     saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status"></span>Saving...';
+                    editForm.submit();
+                    return false;
                 });
             }
 
@@ -1856,6 +2241,18 @@
 
             // Initial toggle
             toggleItAssignField();
+
+            // Always sync the status dropdown into the hidden Status field before the
+            // form is submitted (covers Enter-key submits and any submit path that does
+            // not go through the Save button click handler above).
+            if (editForm && statusHidden) {
+                editForm.addEventListener('submit', function () {
+                    const submitStatusDropdown = document.getElementById('statusDropdown');
+                    if (submitStatusDropdown && submitStatusDropdown.value) {
+                        statusHidden.value = submitStatusDropdown.value;
+                    }
+                });
+            }
         })();
     </script>
 }

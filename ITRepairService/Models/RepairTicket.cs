@@ -216,5 +216,8 @@ public enum TicketStatus
     Closed,
 
     [Display(Name = "Complete (IT ดำเนินการเสร็จ)")]
-    Complete
+    Complete,
+
+    [Display(Name = "Deleted")]
+    Deleted
 }

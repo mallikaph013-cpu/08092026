@@ -591,6 +591,7 @@ body.app-shell {
 .badge-rejected { background-color: #fee2e2; color: #991b1b; }
 .badge-complete { background-color: #dbeafe; color: #1e40af; }
 .badge-closed { background-color: var(--gray-100); color: var(--gray-600); }
+.badge-deleted { background-color: #f3f4f6; color: #6b7280; text-decoration: line-through; }
 
 /* ===================================================================
    Tables

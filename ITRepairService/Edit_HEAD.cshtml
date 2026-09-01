@@ -1,4 +1,5 @@
 ﻿@model ITRepairService.Models.RepairTicket
+@using ITRepairService.Models
 
 @{
     ViewData["Title"] = "Edit IT Service";
@@ -48,6 +49,22 @@
         || Model.Status == ITRepairService.Models.TicketStatus.Complete
         || Model.Status == ITRepairService.Models.TicketStatus.Closed;
     var lockPrimaryStatusSelection = !assigneeCompleteOnlyMode && (hasPriorStatusSteps || !canEditStatusByUser);
+    var isNotRequesterAndOpen = !requesterEditMode
+        && !string.IsNullOrWhiteSpace(currentUserId)
+        && !string.IsNullOrWhiteSpace(Model.RequesterUserId)
+        && currentUserId != Model.RequesterUserId
+        && Model.Status == ITRepairService.Models.TicketStatus.Open;
+    var isCurrentUserNextApproverLevel1 = !string.IsNullOrWhiteSpace(Model.NextApproverUserId)
+        && Model.NextApproverUserId == currentUserId
+        && Model.ApprovalLevel == 1
+        && Model.Status == ITRepairService.Models.TicketStatus.Open;
+
+    // Lock saving when the ticket is already Approved at level 1 and the viewer
+    // is not the DX final approver - only the DX final approver can act on it.
+    var isApprovedLevel1LockedForViewer = Model.Status == ITRepairService.Models.TicketStatus.Approved
+        && Model.ApprovalLevel == 1
+        && !string.IsNullOrWhiteSpace(currentUserId)
+        && currentUserId != Model.DxFinalApproverUserId;
 
     Model.Status = flowPrimaryStatus;
 
@@ -88,6 +105,7 @@
             ITRepairService.Models.TicketStatus.Rejected => "bg-danger",
             ITRepairService.Models.TicketStatus.Complete => "bg-primary",
             ITRepairService.Models.TicketStatus.Closed => "bg-secondary",
+            ITRepairService.Models.TicketStatus.Deleted => "bg-secondary",
             _ => "bg-secondary"
         };
     }
@@ -102,6 +120,7 @@
             ITRepairService.Models.TicketStatus.Rejected => "fa-times-circle",
             ITRepairService.Models.TicketStatus.Complete => "fa-check-double",
             ITRepairService.Models.TicketStatus.Closed => "fa-lock",
+            ITRepairService.Models.TicketStatus.Deleted => "fa-trash",
             _ => "fa-question-circle"
         };
     }
@@ -535,11 +554,24 @@
     <div class="col-12">
         <div class="card form-card">
             <div class="card-body">
-                <form asp-action="Edit">
+                <form asp-action="Edit" id="editTicketForm">
                     <input type="hidden" asp-for="Id" />
                     <input type="hidden" asp-for="CreatedAt" />
                     <input type="hidden" asp-for="Priority" />
-                    <input type="hidden" asp-for="DeviceName" />
+                    @if (isApprovedOrBeyond || isNotRequesterAndOpen)
+                    {
+                        <div class="mb-3">
+                            <label asp-for="DeviceName" class="form-label">
+                                <i class="fas fa-desktop me-1"></i>ประเภทอุปกรณ์
+                            </label>
+                            <input asp-for="DeviceName" class="form-control" readonly />
+                            <span asp-validation-for="DeviceName" class="text-danger small"></span>
+                        </div>
+                    }
+                    else
+                    {
+                        <input type="hidden" asp-for="DeviceName" />
+                    }
                     <div asp-validation-summary="ModelOnly" class="alert alert-danger py-2 mb-3" style="display: none;" id="validationSummary"></div>
 
                     @if (requesterEditMode)
@@ -582,9 +614,9 @@
                         <label asp-for="RepairType" class="form-label">
                             <i class="fas fa-tools me-1"></i>เธเธฃเธฐเน€เธ เธ—เธเธฒเธฃเนเธเนเธเธเนเธญเธก
                         </label>
-                        @if (isApprovedOrBeyond)
+                        @if (isApprovedOrBeyond || isNotRequesterAndOpen)
                         {
-                            <select asp-for="RepairType" class="form-select" asp-items="Html.GetEnumSelectList<ITRepairService.Models.RepairType>()" disabled></select>
+                            <input asp-for="RepairType" class="form-control" readonly value="@Model.RepairType.GetDisplayName()" />
                         }
                         else
                         {
@@ -646,7 +678,11 @@
                         <label class="form-label">
                             <i class="fas fa-share me-1"></i>เธเนเธฒเธขเธ—เธตเนเธญเธเธธเธกเธฑเธ•เธดเธฅเธณเธ”เธฑเธเธ–เธฑเธ”เนเธ
                         </label>
-                        @if (requesterEditMode || ViewData["NextApproverFilterMode"]?.ToString() == "DX")
+                        @if (isCurrentUserNextApproverLevel1)
+                        {
+                            <input asp-for="NextApproverDepartment" class="form-control" readonly value="@Model.ApproverDepartment" id="approverDepartmentSelect" />
+                        }
+                        else if (requesterEditMode || ViewData["NextApproverFilterMode"]?.ToString() == "DX")
                         {
                             <input asp-for="NextApproverDepartment" class="form-control" readonly />
                         }
@@ -705,6 +741,7 @@
                                         }
                                     }
                                 </select>
+                                <input type="hidden" asp-for="NextApproverUserId" />
                                 <input type="hidden" name="ThirdApproverUserId" id="hiddenThirdApproverUserId" value="@ViewData["SelectedThirdApproverUserId"]" />
                             }
                             else
@@ -756,7 +793,7 @@
                         <input type="hidden" asp-for="NextApproverUserId" />
                     }
 
-                    @if (!requesterEditMode && ViewData["NextApproverFilterMode"]?.ToString() == "DX")
+                    @if (!requesterEditMode && ViewData["NextApproverFilterMode"]?.ToString() == "DX" || isCurrentUserNextApproverLevel1)
                     {
                         var directDxApprovers = ViewData["DirectDxApproverUsers"] as List<ITRepairService.Models.ApplicationUser>
                             ?? new List<ITRepairService.Models.ApplicationUser>();
@@ -766,7 +803,8 @@
                         // 2. User is the current SecondApprover (the one who is at the approval step)
                         var canEditThirdApprover = User.IsInRole(ITRepairService.Models.AppRoles.ITSupport) 
                             || User.IsInRole(ITRepairService.Models.AppRoles.Admin)
-                            || (!string.IsNullOrEmpty(Model.SecondApproverUserId) && Model.SecondApproverUserId == ViewData["CurrentUserId"]?.ToString());
+                            || (!string.IsNullOrEmpty(Model.SecondApproverUserId) && Model.SecondApproverUserId == ViewData["CurrentUserId"]?.ToString())
+                            || (!string.IsNullOrEmpty(Model.NextApproverUserId) && Model.NextApproverUserId == ViewData["CurrentUserId"]?.ToString());
                         
                         <div class="mb-3">
                             <label class="form-label">
@@ -1092,6 +1130,10 @@
                                     @foreach (ITRepairService.Models.TicketStatus statusVal in Enum.GetValues(typeof(ITRepairService.Models.TicketStatus)))
                                     {
                                         if (statusVal == ITRepairService.Models.TicketStatus.Open) { continue; }
+                                        @* For ITSupport-only users (not Admin), restrict to InProgress and Complete only *@
+                                        if (User.IsInRole(ITRepairService.Models.AppRoles.ITSupport) && !User.IsInRole(ITRepairService.Models.AppRoles.Admin)
+                                            && statusVal != ITRepairService.Models.TicketStatus.InProgress
+                                            && statusVal != ITRepairService.Models.TicketStatus.Complete) { continue; }
                                         if (statusVal == ITRepairService.Models.TicketStatus.Closed && !User.IsInRole(ITRepairService.Models.AppRoles.Admin) && !User.IsInRole(ITRepairService.Models.AppRoles.ITSupport) && flowPrimaryStatus != ITRepairService.Models.TicketStatus.Complete) { continue; }
                                         if (statusVal == ITRepairService.Models.TicketStatus.InProgress && !canSeeInProgress) { continue; }
                                         if (statusVal == ITRepairService.Models.TicketStatus.Complete && !canSeeComplete) { continue; }
@@ -1132,9 +1174,18 @@
                     <hr class="my-4" />
 
                     <div class="d-flex gap-3 flex-wrap">
-                        <button type="submit" class="btn btn-primary px-5" id="saveBtn">
-                            <i class="fas fa-save me-2"></i>Save
-                        </button>
+                        @if (isApprovedLevel1LockedForViewer)
+                        {
+                            <button type="button" class="btn btn-secondary px-5" disabled title="รายการได้รับการอนุมัติแล้ว รอผู้อนุมัติ DX ดำเนินการ">
+                                <i class="fas fa-lock me-2"></i>Approved
+                            </button>
+                        }
+                        else
+                        {
+                            <button type="submit" class="btn btn-primary px-5" id="saveBtn">
+                                <i class="fas fa-save me-2"></i>Save
+                            </button>
+                        }
                         <a asp-action="Index" class="btn btn-secondary px-4">
                             <i class="fas fa-times me-2"></i>Cancel
                         </a>
@@ -1157,7 +1208,9 @@
             const statusBadge = document.getElementById('statusBadge');
             const statusBadgeText = document.getElementById('statusBadgeText');
             const additionalStatusSteps = document.getElementById('additionalStatusSteps');
-            const editForm = document.querySelector('form[asp-action="Edit"]') || document.querySelector('form');
+            const editForm = document.getElementById('editTicketForm')
+                || document.querySelector('form[action*="Edit"]')
+                || document.querySelector('form');
             const approveBtn = document.getElementById('approveBtn');
             const rejectBtn = document.getElementById('rejectBtn');
             const remarkContainer = document.getElementById('rejectRemarkContainer');

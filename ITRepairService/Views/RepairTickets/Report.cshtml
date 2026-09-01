@@ -348,6 +348,32 @@ border: 1px solid #b8c0c8;
     var itApproverName = itSupportName;
     var itApproverDate = itSupportDate;
 
+    // For ApprovalLevel 2, find timeline events for each approver level
+    RepairTicketStatusHistory? FindApproverEvent(string? approverName)
+    {
+        if (string.IsNullOrWhiteSpace(approverName))
+            return null;
+        return printTimeline.FirstOrDefault(item =>
+            !string.IsNullOrWhiteSpace(item.ChangedByName)
+            && item.ChangedByName.Trim().Equals(approverName.Trim(), StringComparison.OrdinalIgnoreCase)
+            && (item.ToStatus == TicketStatus.Approved || item.Action == "Approved"));
+    }
+
+    var secondApproverEvent = FindApproverEvent(printTicket.SecondApproverName)
+        ?? LastTimelineEvent(item => item.ToStatus == TicketStatus.Approved);
+    var thirdApproverEvent = FindApproverEvent(printTicket.ThirdApproverName)
+        ?? LastTimelineEvent(item => item.ToStatus == TicketStatus.Approved);
+    var dxApproverEvent = FindApproverEvent(printTicket.DxFinalApproverName)
+        ?? LastTimelineEvent(item => item.ToStatus == TicketStatus.Approved);
+
+    var secondApproverDate = secondApproverEvent?.ChangedAt ?? (printTicket.UpdatedAt ?? printTicket.CreatedAt);
+    var thirdApproverDate = thirdApproverEvent?.ChangedAt ?? (printTicket.UpdatedAt ?? printTicket.CreatedAt);
+    var dxApproverDate = dxApproverEvent?.ChangedAt ?? (printTicket.UpdatedAt ?? printTicket.CreatedAt);
+
+    var createdByNameDisplay = !string.IsNullOrWhiteSpace(printTicket.CreatedByName)
+        ? printTicket.CreatedByName
+        : requesterName;
+
     <div class="no-print mb-3 d-flex gap-2 justify-content-end" style="max-width:760px;margin:0 auto;">
         <button type="button" onclick="downloadTicketPdf()" class="btn btn-danger">
             <i class="fas fa-file-pdf me-1"></i>บันทึก PDF
@@ -383,32 +409,67 @@ border: 1px solid #b8c0c8;
         <div class="print-summary-box">@printTicket.IssueDescription</div>
 
         <div class="print-section-title">การอนุมัติ</div>
-        <div class="print-approvals">
-            <div>
-                <div class="print-approval-name">@requesterName</div>
-                <div class="print-approval-role">ผู้แจ้งซ่อม</div>
-                <div class="print-approval-date">@FormatThaiShortDate(requesterDate)</div>
+        @if (printTicket.ApprovalLevel == 2)
+        {
+            <div class="print-approvals" style="grid-template-columns: repeat(5, minmax(0, 1fr));">
+                <div>
+                    <div class="print-approval-name">@createdByNameDisplay</div>
+                    <div class="print-approval-role">ผู้สร้าง</div>
+                    <div class="print-approval-date">@FormatThaiShortDate(requesterDate)</div>
+                </div>
+                <div>
+                    <div class="print-approval-name">@(string.IsNullOrWhiteSpace(printTicket.ApproverName) ? "-" : printTicket.ApproverName)</div>
+                    <div class="print-approval-role">ผู้อนุมัติ</div>
+                    <div class="print-approval-date">@FormatThaiShortDate(approverDate)</div>
+                </div>
+                <div>
+                    <div class="print-approval-name">@(string.IsNullOrWhiteSpace(printTicket.SecondApproverName) ? "-" : printTicket.SecondApproverName)</div>
+                    <div class="print-approval-role">ผู้อนุมัติ</div>
+                    <div class="print-approval-date">@FormatThaiShortDate(secondApproverDate)</div>
+                </div>
+                <div>
+                    <div class="print-approval-name">@itSupportName</div>
+                    <div class="print-approval-role">เจ้าหน้าที่ IT</div>
+                    <div class="print-approval-date">@FormatThaiShortDate(itSupportDate)</div>
+                </div>
+                <div>
+                    <div class="print-approval-name">@(string.IsNullOrWhiteSpace(printTicket.ThirdApproverName) ? "-" : printTicket.ThirdApproverName)</div>
+                    <div class="print-approval-role">ผู้อนุมัติ</div>
+                    <div class="print-approval-date">@FormatThaiShortDate(thirdApproverDate)</div>
+                </div>
             </div>
-            <div>
-                <div class="print-approval-name">@approverName</div>
-                <div class="print-approval-role">ผู้อนุมัติ</div>
-                @if (isDriveAccessTicket)
-                {
-                    <div class="print-approval-role">ผู้อนุมัติ: @nextStepApproverName</div>
-                }
-                <div class="print-approval-date">@FormatThaiShortDate(approverDate)</div>
+        }
+        else
+        {
+            <div class="print-approvals">
+                <div>
+                    <div class="print-approval-name">@requesterName</div>
+                    <div class="print-approval-role">ผู้แจ้งซ่อม</div>
+                    <div class="print-approval-date">@FormatThaiShortDate(requesterDate)</div>
+                </div>
+                <div>
+                    <div class="print-approval-name">@approverName</div>
+                    <div class="print-approval-role">ผู้อนุมัติ</div>
+                    @if (isDriveAccessTicket)
+                    {
+                        <div class="print-approval-role">ผู้อนุมัติ: @nextStepApproverName</div>
+                    }
+                    <div class="print-approval-date">@FormatThaiShortDate(approverDate)</div>
+                </div>
+                
+                <div>
+                    <div class="print-approval-name">@(string.IsNullOrWhiteSpace(printTicket.DxFinalApproverName) ? "-" : printTicket.DxFinalApproverName)</div>
+                    <div class="print-approval-role">ผู้อนุมัติ DX</div>
+                    <div class="print-approval-date">@FormatThaiShortDate(itApproverDate)</div>
+                </div>
+
+                <div>
+                    <div class="print-approval-name">@itSupportName</div>
+                    <div class="print-approval-role">เจ้าหน้าที่ IT</div>
+                    <div class="print-approval-date">@FormatThaiShortDate(itSupportDate)</div>
+                </div>
             </div>
-            <div>
-                <div class="print-approval-name">@itSupportName</div>
-                <div class="print-approval-role">เจ้าหน้าที่ IT</div>
-                <div class="print-approval-date">@FormatThaiShortDate(itSupportDate)</div>
-            </div>
-            <div>
-                <div class="print-approval-name">@itApproverName</div>
-                <div class="print-approval-role">ผู้อนุมัติ IT</div>
-                <div class="print-approval-date">@FormatThaiShortDate(itApproverDate)</div>
-            </div>
-        </div>
+        }
     </div>
 }
 else

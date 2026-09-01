@@ -4,6 +4,7 @@
 @{
     ViewData["Title"] = "IT Service Details";
     var canEditTicket = ViewData["CanEditTicket"] as bool? ?? false;
+    var returnAction = ViewData["ReturnAction"]?.ToString() ?? "Index";
     var statusTimeline = ViewData["StatusTimeline"] as List<RepairTicketStatusHistory>
         ?? new List<RepairTicketStatusHistory>();
     var createdByDisplay = !string.IsNullOrWhiteSpace(Model.CreatedByName)
@@ -145,7 +146,7 @@
                 </div>
                 <div class="d-flex align-items-center gap-2">
                     <span class="badge badge-soft @statusClass">@statusDisplay</span>
-                    <a asp-action="Index" class="btn btn-light fw-semibold">
+                    <a asp-action="@returnAction" class="btn btn-light fw-semibold">
                         <i class="fas fa-arrow-left me-1"></i>Back to List
                     </a>
                 </div>
@@ -286,9 +287,9 @@
 <div class="d-flex gap-2 mt-4">
     @if (canEditTicket)
     {
-        <a asp-action="Edit" asp-route-id="@Model.Id" class="btn btn-warning">
+        <a asp-action="Edit" asp-route-id="@Model.Id" asp-route-returnaction="@returnAction" class="btn btn-warning">
             <i class="fas fa-pen me-1"></i>Edit
         </a>
     }
-    <a asp-action="Index" class="btn btn-secondary">Back to List</a>
+    <a asp-action="@returnAction" class="btn btn-secondary">Back to List</a>
 </div>

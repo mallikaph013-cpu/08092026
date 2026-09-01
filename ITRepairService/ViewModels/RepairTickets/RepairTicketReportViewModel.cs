@@ -48,4 +48,14 @@ public class RepairTicketReportItemViewModel
     public string LastAction { get; set; } = string.Empty;
 
     public string LastRemark { get; set; } = string.Empty;
+
+    public string? CreatedByName { get; set; }
+
+    public string? SecondApproverName { get; set; }
+
+    public string? ThirdApproverName { get; set; }
+
+    public string? DxFinalApproverName { get; set; }
+
+    public int ApprovalLevel { get; set; } = 1;
 }
