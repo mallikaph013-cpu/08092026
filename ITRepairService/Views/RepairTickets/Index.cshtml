@@ -76,7 +76,7 @@
         {
             if (ticket.Step == 1 && !string.IsNullOrWhiteSpace(ticket.ApproverName))
             {
-                return $"{ticket.ApproverDepartment} อนุมัติรายการแล้ว";
+                return $"{ticket.ApproverDepartment ?? ticket.Department} อนุมัติรายการแล้ว";
             }
             if (ticket.Step == 2 && !string.IsNullOrWhiteSpace(ticket.SecondApproverName))
             {

@@ -206,23 +206,40 @@ if (-not $SkipBuild) {
     Write-Step "Copying migration assemblies"
 
     # SQLite migrations
-    $sqliteBuildDir = "$SolutionDir\ITRepairService.Migrations.Sqlite\bin\$Configuration\net9.0"
+    # Directory.Build.props redirects build output to %LOCALAPPDATA%\DXService\<project>\bin\...
+    $sqliteBuildDir = "$buildOutputBase\ITRepairService.Migrations.Sqlite\bin\$Configuration\net9.0"
     if (Test-Path $sqliteBuildDir) {
         Copy-Item -Path "$sqliteBuildDir\ITRepairService.Migrations.Sqlite.dll" -Destination $TargetPath -Force -ErrorAction SilentlyContinue
         Copy-Item -Path "$sqliteBuildDir\ITRepairService.Migrations.Sqlite.pdb" -Destination $TargetPath -Force -ErrorAction SilentlyContinue
         Write-Success "SQLite migration assemblies copied."
     } else {
-        Write-WarningMessage "SQLite migration assemblies not found at $sqliteBuildDir"
+        # Fallback to the conventional path (in case Directory.Build.props changed)
+        $sqliteBuildDirFallback = "$SolutionDir\ITRepairService.Migrations.Sqlite\bin\$Configuration\net9.0"
+        if (Test-Path $sqliteBuildDirFallback) {
+            Copy-Item -Path "$sqliteBuildDirFallback\ITRepairService.Migrations.Sqlite.dll" -Destination $TargetPath -Force -ErrorAction SilentlyContinue
+            Copy-Item -Path "$sqliteBuildDirFallback\ITRepairService.Migrations.Sqlite.pdb" -Destination $TargetPath -Force -ErrorAction SilentlyContinue
+            Write-Success "SQLite migration assemblies copied (fallback path)."
+        } else {
+            Write-WarningMessage "SQLite migration assemblies not found at $sqliteBuildDir"
+        }
     }
 
     # SQL Server migrations
-    $sqlServerBuildDir = "$SolutionDir\ITRepairService.Migrations.SqlServer\bin\$Configuration\net9.0"
+    $sqlServerBuildDir = "$buildOutputBase\ITRepairService.Migrations.SqlServer\bin\$Configuration\net9.0"
     if (Test-Path $sqlServerBuildDir) {
         Copy-Item -Path "$sqlServerBuildDir\ITRepairService.Migrations.SqlServer.dll" -Destination $TargetPath -Force -ErrorAction SilentlyContinue
         Copy-Item -Path "$sqlServerBuildDir\ITRepairService.Migrations.SqlServer.pdb" -Destination $TargetPath -Force -ErrorAction SilentlyContinue
         Write-Success "SQL Server migration assemblies copied."
     } else {
-        Write-WarningMessage "SQL Server migration assemblies not found at $sqlServerBuildDir"
+        # Fallback to the conventional path (in case Directory.Build.props changed)
+        $sqlServerBuildDirFallback = "$SolutionDir\ITRepairService.Migrations.SqlServer\bin\$Configuration\net9.0"
+        if (Test-Path $sqlServerBuildDirFallback) {
+            Copy-Item -Path "$sqlServerBuildDirFallback\ITRepairService.Migrations.SqlServer.dll" -Destination $TargetPath -Force -ErrorAction SilentlyContinue
+            Copy-Item -Path "$sqlServerBuildDirFallback\ITRepairService.Migrations.SqlServer.pdb" -Destination $TargetPath -Force -ErrorAction SilentlyContinue
+            Write-Success "SQL Server migration assemblies copied (fallback path)."
+        } else {
+            Write-WarningMessage "SQL Server migration assemblies not found at $sqlServerBuildDir"
+        }
     }
 
     # --- 7. Configure production appsettings ---
@@ -256,13 +273,13 @@ if (-not $SkipBuild) {
     Write-Step "Skipping build/publish (SkipBuild flag set)"
 }
 
-# --- 8. Create web.config for IIS (if needed) ---
+# --- 8. Ensure web.config for IIS with Production environment ---
 Write-Step "Ensuring web.config for IIS"
 
 $webConfigPath = "$TargetPath\web.config"
-if (-not (Test-Path $webConfigPath)) {
-    # ASP.NET Core publishes its own web.config, but just in case:
-    $webConfig = @"
+# ASP.NET Core publishes its own web.config, but it does NOT set ASPNETCORE_ENVIRONMENT.
+# Always write our own so the deployed site runs in Production.
+$webConfig = @"
 <?xml version="1.0" encoding="utf-8"?>
 <configuration>
   <location path="." inheritInChildApplications="false">
@@ -279,11 +296,8 @@ if (-not (Test-Path $webConfigPath)) {
   </location>
 </configuration>
 "@
-    Set-Content -Path $webConfigPath -Value $webConfig -Encoding UTF8
-    Write-Success "web.config created."
-} else {
-    Write-Host "  web.config already exists."
-}
+Set-Content -Path $webConfigPath -Value $webConfig -Encoding UTF8
+Write-Success "web.config ensured with ASPNETCORE_ENVIRONMENT=Production."
 
 # --- 9. Create log directory ---
 $logDir = "$TargetPath\logs"
@@ -424,11 +438,11 @@ Write-Host "  DB Provider    : $DatabaseProvider" -ForegroundColor Green
 Write-Host "  Size           : "
 $totalSize = (Get-ChildItem -Path $TargetPath -Recurse | Measure-Object -Property Length -Sum).Sum
 if ($totalSize -gt 1GB) {
-    Write-Host "    {0:N2} GB" -f ($totalSize / 1GB) -ForegroundColor Green
+    Write-Host ("    {0:N2} GB" -f ($totalSize / 1GB)) -ForegroundColor Green
 } elseif ($totalSize -gt 1MB) {
-    Write-Host "    {0:N2} MB" -f ($totalSize / 1MB) -ForegroundColor Green
+    Write-Host ("    {0:N2} MB" -f ($totalSize / 1MB)) -ForegroundColor Green
 } else {
-    Write-Host "    {0:N2} KB" -f ($totalSize / 1KB) -ForegroundColor Green
+    Write-Host ("    {0:N2} KB" -f ($totalSize / 1KB)) -ForegroundColor Green
 }
 Write-Host "  File Count     : $( (Get-ChildItem -Path $TargetPath -Recurse -File).Count )" -ForegroundColor Green
 Write-Host "  Timestamp      : $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')" -ForegroundColor Green

@@ -20,6 +20,9 @@
         ?? new List<ITRepairService.Models.ApplicationUser>();
     var selectedThirdApproverUserId = ViewData["SelectedThirdApproverUserId"]?.ToString() ?? Model.ThirdApproverUserId;
     var isDriveAccessRepairType = Model.RepairType == ITRepairService.Models.RepairType.DriveAccessPermission;
+    // Match the Create form: the device-type field is only shown for Hardware and Software.
+    var isHardwareOrSoftwareRepairType = Model.RepairType == ITRepairService.Models.RepairType.Hardware
+        || Model.RepairType == ITRepairService.Models.RepairType.Software;
     var additionalApprovalStatuses = ViewData["ApprovalStatuses"] as List<ITRepairService.Models.TicketStatus>
         ?? new List<ITRepairService.Models.TicketStatus>();
     var flowPrimaryStatus = ViewData["FlowPrimaryStatus"] is ITRepairService.Models.TicketStatus statusFromFlow
@@ -687,7 +690,7 @@
                     </div>
 
 
-                    @if (!isDriveAccessRepairType)
+                    @if (isHardwareOrSoftwareRepairType)
                     {
                         <div class="mb-3">
                             <label asp-for="DeviceName" class="form-label">
@@ -796,7 +799,7 @@
                         }
                         else if (isCurrentUserNextApproverLevel1)
                         {
-                            <input asp-for="NextApproverDepartment" class="form-control" readonly value="@Model.ApproverDepartment" id="approverDepartmentSelect" />
+                            <input asp-for="NextApproverDepartment" class="form-control" readonly value="@(Model.ApproverDepartment ?? Model.NextApproverDepartment)" id="approverDepartmentSelect" />
                         }
                         else if (isCurrentUserApproverStep1)
                         {
@@ -862,6 +865,17 @@
                                         : approver.Email;
                                     var departmentValue = approver.Department?.Trim() ?? string.Empty;
                                     var isSelected = ViewData["NextApproverUserId"]?.ToString() == approver.Id;
+                                    @* Requester edit mode (currentUserId == RequesterUserId): keep the
+                                       "ผู้อนุมัติลำดับถัดไป" list limited to the "ฝ่ายที่อนุมัติลำดับถัดไป"
+                                       department, exactly like the Create form. The currently selected
+                                       approver is always kept so the saved value is never dropped. *@
+                                    var nextApproverDepartment = Model.NextApproverDepartment?.Trim() ?? string.Empty;
+                                    @if (!string.IsNullOrWhiteSpace(nextApproverDepartment)
+                                        && !string.Equals(departmentValue, nextApproverDepartment, StringComparison.OrdinalIgnoreCase)
+                                        && !isSelected)
+                                    {
+                                        continue;
+                                    }
 
                                     @if (isSelected)
                                     {

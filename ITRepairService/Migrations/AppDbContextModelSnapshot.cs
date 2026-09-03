@@ -201,7 +201,6 @@ namespace ITRepairService.Migrations
                         .HasColumnType("int");
 
                     b.Property<string>("ApproverDepartment")
-                        .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 

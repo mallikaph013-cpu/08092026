@@ -24,6 +24,9 @@ builder.Services.AddDbContext<AppDbContext>(options =>
     if (databaseProvider.Equals("SqlServer", StringComparison.OrdinalIgnoreCase))
     {
         options.UseSqlServer(sqlServerConnection);
+        // The model snapshot in the migrations assembly is maintained manually and can
+        // lag behind the model; ignore the pending-model-changes check on startup.
+        options.ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
     }
     else
     {

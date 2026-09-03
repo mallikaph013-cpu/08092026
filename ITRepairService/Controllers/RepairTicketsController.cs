@@ -839,8 +839,9 @@ public class RepairTicketsController(AppDbContext context, UserManager<Applicati
             : (currentUser?.UserName ?? User.Identity?.Name ?? string.Empty);
 
         ticket.Department = ticket.Department?.Trim() ?? string.Empty;
-        // ApproverDepartment is readonly in Create form - always set from current user's department
-        ticket.ApproverDepartment = currentUser?.Department?.Trim() ?? ticket.ApproverDepartment?.Trim() ?? string.Empty;
+        // ApproverDepartment ("ฝ่ายที่อนุมัติ") is recorded only when an approver
+        // actually approves the ticket. First save (Create) must keep it null.
+        ticket.ApproverDepartment = null;
         ticket.DriveAccessDepartment = ticket.DriveAccessDepartment?.Trim() ?? string.Empty;
         ticket.IssueDescription = ticket.IssueDescription?.Trim() ?? string.Empty;
 
@@ -854,9 +855,9 @@ public class RepairTicketsController(AppDbContext context, UserManager<Applicati
             ticket.ApprovalLevel = 1; // Normal repair requires 1-level approval
         }
 
-        var targetApproverDepartment = ticket.RepairType == RepairType.DriveAccessPermission
-            ? ticket.DriveAccessDepartment
-            : ticket.Department;
+         var targetApproverDepartment = ticket.RepairType == RepairType.DriveAccessPermission
+             ? ticket.DriveAccessDepartment
+             : ticket.Department;
 
         // Set NextApprover fields for routing to the next approver in the workflow
         var approverUsers = await GetApproverUsersAsync();
@@ -1133,7 +1134,35 @@ public class RepairTicketsController(AppDbContext context, UserManager<Applicati
         // so the dropdown shows the correct department for the NextApprover
         var selectedApproverDepartment = (ViewData["RequesterEditMode"] as bool? ?? false)
             ? ticket.NextApproverDepartment
-            : ticket.ApproverDepartment;
+            : (!string.IsNullOrWhiteSpace(ticket.ApproverDepartment)
+                ? ticket.ApproverDepartment
+                : ticket.NextApproverDepartment);
+
+        // เมื่อ First Approver ขั้นตอนแรกของรายการขอสิทธิ์ Drive เข้ามาแก้ไขรายการเพื่อ Approve
+        // ให้ default ช่อง "ฝ่ายที่อนุมัติลำดับถัดไป" (NextApproverDepartment) เป็นฝ่ายตาม
+        // DriveAccessDepartment (ฝ่ายที่ขอสิทธิ์ Drive) เพื่อให้เลือกผู้อนุมัติลำดับถัดไปจากฝ่ายนั้น
+        // กรณีครอบคลุม 2 สถานะแรกของ First Approver:
+        //  1) ApproverUserId ว่าง + CurrentUserId == NextApproverUserId (First Approver ที่ถูก route มา เปิดครั้งแรกเพื่อ Approve)
+        //  2) ApproverUserId เป็น CurrentUser + ยังไม่มี SecondApprover (First Approver กด Approve/แก้ไข แล้วยังไม่ถึงขั้น DX)
+        var isDriveAccessFirstStage = ticket.RepairType == RepairType.DriveAccessPermission
+            && ticket.ApprovalLevel == 2
+            && ticket.Step == 1
+            && string.IsNullOrWhiteSpace(ticket.SecondApproverUserId);
+        var isDriveAccessFirstApproverActing = isDriveAccessFirstStage
+            && (
+                (string.IsNullOrWhiteSpace(ticket.ApproverUserId)
+                    && !string.IsNullOrWhiteSpace(ticket.NextApproverUserId)
+                    && currentUser?.Id == ticket.NextApproverUserId)
+                ||
+                (!string.IsNullOrWhiteSpace(ticket.ApproverUserId)
+                    && currentUser?.Id == ticket.ApproverUserId)
+            );
+        if (isDriveAccessFirstApproverActing && !string.IsNullOrWhiteSpace(ticket.DriveAccessDepartment))
+        {
+            ticket.NextApproverDepartment = ticket.DriveAccessDepartment;
+            selectedApproverDepartment = ticket.DriveAccessDepartment;
+        }
+
         await PopulateApproverSelectionsAsync(selectedApproverDepartment, ticket.ApproverUserId);
         await PopulateDriveAccessDepartmentSelectionsAsync(ticket.DriveAccessDepartment);
         await PopulateThirdApproverSelectionsAsync(ticket.ThirdApproverUserId);
@@ -1599,7 +1628,7 @@ public class RepairTicketsController(AppDbContext context, UserManager<Applicati
             {
                 ViewData["RequesterEditMode"] = true;
                 await PopulateItSupportSelectionsAsync(existingTicket.AssignedItUserId);
-                await PopulateApproverSelectionsAsync(existingTicket.ApproverDepartment, existingTicket.ApproverUserId);
+                await PopulateApproverSelectionsAsync(existingTicket.ApproverDepartment ?? existingTicket.NextApproverDepartment, existingTicket.ApproverUserId);
                 return View(existingTicket);
             }
 
@@ -1743,11 +1772,16 @@ public class RepairTicketsController(AppDbContext context, UserManager<Applicati
         existingTicket.Status = effectiveStatus;
         existingTicket.CreatedAt = ticket.CreatedAt;
         
-        // Handle ApproverDepartment - ALWAYS set from RequesterUserId's department
-        // This should NEVER be empty if RequesterUserId is set correctly
+        // Handle ApproverDepartment ("ฝ่ายที่อนุมัติ") - recorded only when an approver
+        // actually approves (or rejects) the ticket. A requester saving their own ticket
+        // never writes a value, so the first save keeps ApproverDepartment null.
         var requesterUserId = existingTicket.RequesterUserId ?? string.Empty;
+        var isRequesterSavingTicket = !string.IsNullOrWhiteSpace(currentUser?.Id)
+            && string.Equals(currentUser.Id, requesterUserId, StringComparison.Ordinal);
         
-        if (!string.IsNullOrWhiteSpace(requesterUserId))
+        if (!isRequesterSavingTicket
+            && string.IsNullOrWhiteSpace(existingTicket.ApproverDepartment)
+            && !string.IsNullOrWhiteSpace(requesterUserId))
         {
             // Get requester user and their department
             var requesterUser = await _userManager.FindByIdAsync(requesterUserId);
@@ -1764,11 +1798,13 @@ public class RepairTicketsController(AppDbContext context, UserManager<Applicati
                 existingTicket.ApproverDepartment = existingTicket.Department?.Trim() ?? string.Empty;
             }
         }
-        else
+        else if (string.IsNullOrWhiteSpace(requesterUserId))
         {
             // No RequesterUserId - use ticket's Department
             existingTicket.ApproverDepartment = existingTicket.Department?.Trim() ?? string.Empty;
         }
+        // When the requester saves their own ticket, ApproverDepartment is left untouched
+        // (stays null) - "ฝ่ายที่อนุมัติ" is recorded when an approver actually acts.
         
         // Debug logging
         Console.WriteLine($"DEBUG ApproverDepartment: RequesterUserId='{requesterUserId}', Result='{existingTicket.ApproverDepartment}'");
@@ -1814,6 +1850,11 @@ public class RepairTicketsController(AppDbContext context, UserManager<Applicati
             existingTicket.ApproverName = !string.IsNullOrWhiteSpace(currentUser.FullName)
                 ? currentUser.FullName
                 : (currentUser.UserName ?? currentUser.Email ?? "Unknown");
+            // Record "ฝ่ายที่อนุมัติ" from the approver who actually approved.
+            existingTicket.ApproverDepartment = currentUser.Department?.Trim();
+
+            existingTicket.UpdatedAt = DateTime.UtcNow;
+            existingTicket.UpdatedByName = GetActorName(currentUser);
 
 
 
@@ -1870,6 +1911,8 @@ public class RepairTicketsController(AppDbContext context, UserManager<Applicati
 
             existingTicket.ApproverUserId = ticket.ApproverUserId;
             existingTicket.Step = 1;
+            // Fill "ฝ่ายที่อนุมัติ" only when it has not been recorded yet.
+            existingTicket.ApproverDepartment ??= approverUser?.Department?.Trim();
 
         }
         else if (!string.IsNullOrWhiteSpace(ticket.NextApproverUserId) && canEditStatus && existingTicket.ApprovalLevel == 1)
@@ -1992,6 +2035,9 @@ public class RepairTicketsController(AppDbContext context, UserManager<Applicati
                 : (currentUser.UserName ?? currentUser.Email ?? "Unknown");
             existingTicket.SecondApproverDepartment = currentUser.Department?.Trim() ?? string.Empty;
 
+            existingTicket.UpdatedAt = DateTime.UtcNow;
+            existingTicket.UpdatedByName = GetActorName(currentUser);
+
             if (existingTicket.RepairType == RepairType.DriveAccessPermission)
             {
                 // Preserve existing value if form did not provide a value
@@ -2113,6 +2159,7 @@ public class RepairTicketsController(AppDbContext context, UserManager<Applicati
                 existingTicket.ApproverName = !string.IsNullOrWhiteSpace(currentUser.FullName)
                     ? currentUser.FullName
                     : (currentUser.UserName ?? currentUser.Email ?? "Unknown");
+                existingTicket.ApproverDepartment ??= currentUser.Department?.Trim();
                 Console.WriteLine($"DEBUG: Set ApproverUserId to current user for Rejected ticket: '{currentUser.Id}'");
             }
         }
@@ -2159,6 +2206,9 @@ public class RepairTicketsController(AppDbContext context, UserManager<Applicati
                 ? currentUser.FullName
                 : (currentUser.UserName ?? currentUser.Email ?? "Unknown");
             existingTicket.ThirdApproverDepartment = currentUser.Department?.Trim() ?? string.Empty;
+
+            existingTicket.UpdatedAt = DateTime.UtcNow;
+            existingTicket.UpdatedByName = GetActorName(currentUser);
 
 
             if (existingTicket.RepairType == RepairType.DriveAccessPermission)
@@ -2338,7 +2388,7 @@ public class RepairTicketsController(AppDbContext context, UserManager<Applicati
             ViewData["NextApproverName"] = existingTicket.NextApproverName;
             ViewData["NextApproverDepartment"] = existingTicket.NextApproverDepartment;
             await PopulateItSupportSelectionsAsync(existingTicket.AssignedItUserId);
-            await PopulateApproverSelectionsAsync(existingTicket.ApproverDepartment, existingTicket.ApproverUserId);
+            await PopulateApproverSelectionsAsync(existingTicket.ApproverDepartment ?? existingTicket.NextApproverDepartment, existingTicket.ApproverUserId);
             // Re-populate the Drive access department dropdown, otherwise the redisplayed form
             // loses all options and the previously selected department appears to vanish.
             await PopulateDriveAccessDepartmentSelectionsAsync(existingTicket.DriveAccessDepartment);
@@ -2364,7 +2414,7 @@ public class RepairTicketsController(AppDbContext context, UserManager<Applicati
                 ViewData["CurrentUserDisplayName"] = GetActorName(currentUser);
                 ViewData["HasCurrentUserApproved"] = hasCurrentUserApproved;
                 await PopulateItSupportSelectionsAsync(existingTicket.AssignedItUserId);
-                await PopulateApproverSelectionsAsync(existingTicket.ApproverDepartment, existingTicket.ApproverUserId);
+                await PopulateApproverSelectionsAsync(existingTicket.ApproverDepartment ?? existingTicket.NextApproverDepartment, existingTicket.ApproverUserId);
                 return View(existingTicket);
             }
 

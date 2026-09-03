@@ -61,7 +61,7 @@ public class RepairTicket
 
     [StringLength(100)]
     [Display(Name = "ฝ่ายที่อนุมัติ")]
-    public string ApproverDepartment { get; set; } = string.Empty;
+    public string? ApproverDepartment { get; set; }
 
     [StringLength(450)]
     [Display(Name = "ผู้อนุมัติ (SM/DM ของฝ่ายผู้แจ้ง)")]
