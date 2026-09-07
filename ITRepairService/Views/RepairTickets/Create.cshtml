@@ -117,7 +117,12 @@
                         <label class="form-label">
                             <i class="fas fa-file-pdf me-1"></i>ไฟล์แนบ PDF (ถ้ามี)
                         </label>
-                        <input type="file" name="pdfAttachment" class="form-control" accept=".pdf" />
+                        <div class="d-flex align-items-center gap-2">
+                            <input type="file" name="pdfAttachment" id="pdfAttachmentInput" class="form-control flex-grow-1" accept=".pdf" />
+                            <button type="button" id="clearPdfAttachmentBtn" class="btn btn-outline-danger flex-shrink-0" style="display:none;" title="ลบไฟล์แนบที่เลือก">
+                                <i class="fas fa-trash-alt me-1"></i>ลบไฟล์
+                            </button>
+                        </div>
                         <div class="form-text">
                             <i class="fas fa-info-circle me-1"></i>รองรับเฉพาะไฟล์ PDF เท่านั้น ขนาดไฟล์ไม่เกิน 10MB
                         </div>
@@ -472,6 +477,21 @@
             renderDriveAccessDepartment();
             renderApproverOptions();
             updateStatusApproverPreview();
+
+            // PDF attachment: show the clear button only after a file is selected
+            const pdfAttachmentInput = document.getElementById('pdfAttachmentInput');
+            const clearPdfAttachmentBtn = document.getElementById('clearPdfAttachmentBtn');
+
+            if (pdfAttachmentInput && clearPdfAttachmentBtn) {
+                pdfAttachmentInput.addEventListener('change', function () {
+                    clearPdfAttachmentBtn.style.display = pdfAttachmentInput.files.length > 0 ? '' : 'none';
+                });
+
+                clearPdfAttachmentBtn.addEventListener('click', function () {
+                    pdfAttachmentInput.value = '';
+                    clearPdfAttachmentBtn.style.display = 'none';
+                });
+            }
         })();
     </script>
 }

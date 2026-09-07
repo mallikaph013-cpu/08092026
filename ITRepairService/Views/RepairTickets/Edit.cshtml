@@ -84,6 +84,14 @@
         && Model.ApprovalLevel == 1
         && Model.Status == ITRepairService.Models.TicketStatus.Open;
 
+    // ช่อง "ฝ่ายที่อนุมัติลำดับถัดไป" (NextApproverDepartment) เป็น read-only เมื่อ
+    // ผู้ใช้ปัจจุบันไม่ใช่ผู้แจ้ง (CurrentUserId != RequesterUserId) — ฝ่ายดังกล่าวเป็น
+    // ค่าที่ระบบกำหนด (ฝ่ายของผู้แจ้ง หรือ ฝ่ายที่ขอสิทธิ์ Drive) ผู้อนุมัติจึงเปลี่ยนเองไม่ได้
+    var isNextApproverDepartmentReadOnly = !string.Equals(
+        currentUserId?.Trim(),
+        Model.RequesterUserId?.Trim(),
+        StringComparison.Ordinal);
+
     // Save is only allowed while the current user has never pressed Approve on this ticket.
     // Once the user has approved, the Save button is rendered as a disabled button instead.
     var hasCurrentUserApproved = ViewData["HasCurrentUserApproved"] as bool? ?? false;
@@ -774,7 +782,12 @@
                                 <small>ขนาด: @(((Model.PdfAttachmentFileSize ?? 0) / 1024.0).ToString("N2")) KB</small>
                             </div>
                         }
-                        <input type="file" name="pdfAttachment" class="form-control" accept=".pdf" />
+                        <div class="d-flex align-items-center gap-2">
+                            <input type="file" name="pdfAttachment" id="pdfAttachmentInput" class="form-control flex-grow-1" accept=".pdf" />
+                            <button type="button" id="clearPdfAttachmentBtn" class="btn btn-outline-danger flex-shrink-0" style="display:none;" title="ลบไฟล์แนบที่เลือก">
+                                <i class="fas fa-trash-alt me-1"></i>ลบไฟล์
+                            </button>
+                        </div>
                         <div class="form-text">
                             <i class="fas fa-info-circle me-1"></i>รองรับเฉพาะไฟล์ PDF เท่านั้น ขนาดไฟล์ไม่เกิน 10MB (เลือกไฟล์ใหม่เพื่อแทนที่)
                         </div>
@@ -800,6 +813,16 @@
                         else if (isCurrentUserNextApproverLevel1)
                         {
                             <input asp-for="NextApproverDepartment" class="form-control" readonly value="@(Model.ApproverDepartment ?? Model.NextApproverDepartment)" id="approverDepartmentSelect" />
+                        }
+                        else if (isNextApproverDepartmentReadOnly)
+                        {
+                            @* CurrentUserId != RequesterUserId → read-only: ผู้อนุมัติ (ไม่ใช่
+                               ผู้แจ้ง) ไม่สามารถเปลี่ยน "ฝ่ายที่อนุมัติลำดับถัดไป" ได้ ค่าที่แสดง
+                               คือค่าที่ระบบกำหนด (เช่น ฝ่ายที่ขอสิทธิ์ Drive ของรายการขอสิทธิ์
+                               Drive) และยัง submit ค่านี้ไปกับฟอร์มตอนบันทึกตามปกติ
+                               (ใส่ id เดิมไว้เพื่อให้ JS กรองรายชื่อ "ผู้อนุมัติลำดับถัดไป"
+                                ตามฝ่ายที่แสดงเหมือนเดิม) *@
+                            <input asp-for="NextApproverDepartment" class="form-control" readonly id="approverDepartmentSelect" />
                         }
                         else if (isCurrentUserApproverStep1)
                         {
@@ -1159,7 +1182,10 @@
                             <div class="row">
                                 <div class="col-md-6 mb-2">
                                     <strong><i class="fas fa-building me-1"></i>ฝ่ายที่อนุมัติลำดับถัดไป:</strong><br />
-                                    @Model.NextApproverDepartment
+                                    @* แสดงค่าจากฐานข้อมูลเสมอ (ค่าที่ Controller override ในหน่วยความจำ
+                                       เพื่อ default dropdown ต้องไม่ถูกแสดงที่นี่ มิฉะนั้น alert
+                                       จะแสดงฝ่ายอื่นที่ไม่ตรงกับข้อมูลใน DB) *@
+                                    @(ViewData["NextApproverDepartmentOriginal"] as string ?? Model.NextApproverDepartment)
                                 </div>
                                 <div class="col-md-6 mb-2">
                                     <strong><i class="fas fa-user me-1"></i>ผู้อนุมัติลำดับถัดไป:</strong><br />
@@ -1672,6 +1698,12 @@
 
             // Flag: current user is the assigned IT person (fields should be read-only)
             const isCurrentUserAssignedItJs = @(isCurrentUserAssignedIt ? "true" : "false");
+
+            // Drive Access first approver (Step 1, ApproverUserId ยังว่าง, NextApproverUserId ==
+            // CurrentUserId): the controller already defaulted the "ฝ่ายที่อนุมัติลำดับถัดไป"
+            // dropdown to the Drive-requesting department (DriveAccessDepartment) — see
+            // isDriveAccessFirstApproverActing in RepairTicketsController.Edit (GET).
+            const driveAccessFirstApproverDefaulting = @(ViewData["DriveAccessFirstApproverDefaulting"] as bool? ?? false ? "true" : "false");
             
             // DOM Elements
             const departmentSelect = document.getElementById('approverDepartmentSelect');
@@ -1697,6 +1729,25 @@
             const alertPopupConfirm = document.getElementById('alertPopupConfirm');
             const alertPopupCancel = document.getElementById('alertPopupCancel');
             const directNextApproverSelectEl = document.getElementById('directNextApproverSelect');
+
+            // Original (server-rendered) disabled state of the next-approver routing fields,
+            // captured before any Reject/Approve click mutates them. The Reject handler
+            // disables both fields to skip routing validation; switching back to Approve
+            // must restore this original state (DX mode / locked selects stay disabled).
+            const departmentSelectOriginallyDisabled = departmentSelect ? departmentSelect.disabled : false;
+            const approverSelectOriginallyDisabled = approverSelect ? approverSelect.disabled : false;
+
+            // คืนสถานะ enable/disable ของช่อง "ฝ่ายที่อนุมัติลำดับถัดไป" และ
+            // "ผู้อนุมัติลำดับถัดไป" กลับไปเป็นค่าเริ่มต้นจาก server — ใช้เมื่อสลับ
+            // จาก Reject กลับไปเป็น Approve เพื่อให้เลือกผู้อนุมัติลำดับถัดไปได้
+            function restoreNextApproverFields() {
+                if (departmentSelect) {
+                    departmentSelect.disabled = departmentSelectOriginallyDisabled;
+                }
+                if (approverSelect) {
+                    approverSelect.disabled = approverSelectOriginallyDisabled;
+                }
+            }
 
             // Validation summary auto-show
             const validationSummary = document.getElementById('validationSummary');
@@ -1762,19 +1813,34 @@
             // Initialize alert popup
             let isPopupShowing = false;
             let pendingPopupMessage = null;
+            let pendingPopupOkOnly = false;
 
-            function showAlertPopup(message) {
+            function showAlertPopup(message, okOnly = false) {
                 if (!alertPopup || !alertPopupMessage) return;
 
                 // If popup is currently showing, queue the message
                 if (isPopupShowing) {
                     pendingPopupMessage = message;
+                    pendingPopupOkOnly = !!okOnly;
                     return;
                 }
+
+                // ปรับปุ่มของ popup ตามโหมด: ปกติ = Yes/No, okOnly = มีเฉพาะปุ่ม OK
+                applyPopupButtons(okOnly);
 
                 alertPopupMessage.textContent = message;
                 isPopupShowing = true;
                 alertPopup.classList.add('show');
+            }
+
+            // ตั้งค่าปุ่มของ popup: โหมดปกติแสดงปุ่ม Yes/No, โหมด okOnly แสดงเฉพาะปุ่ม OK
+            function applyPopupButtons(okOnly) {
+                if (alertPopupCancel) {
+                    alertPopupCancel.style.display = okOnly ? 'none' : '';
+                }
+                if (alertPopupConfirm) {
+                    alertPopupConfirm.textContent = okOnly ? 'OK' : 'Yes';
+                }
             }
 
             function hideAlertPopup() {
@@ -1786,8 +1852,10 @@
                 // If there's a pending message, show it after a short delay
                 if (pendingPopupMessage) {
                     const message = pendingPopupMessage;
+                    const okOnly = pendingPopupOkOnly;
                     pendingPopupMessage = null;
-                    setTimeout(() => showAlertPopup(message), 100);
+                    pendingPopupOkOnly = false;
+                    setTimeout(() => showAlertPopup(message, okOnly), 100);
                 }
             }
 
@@ -1798,8 +1866,10 @@
                 alertPopupCancel.addEventListener('click', hideAlertPopup);
             }
 
-            // Alias for backward compatibility
-            const showAlertModal = showAlertPopup;
+            // showAlertModal: แสดง popup แจ้งเตือนที่มีเฉพาะปุ่ม OK (ไม่มีปุ่ม Yes/No)
+            // ใช้กับข้อความ validation ที่ผู้ใช้แค่กดรับทราบ เช่น
+            // "กรุณาเลือกผู้อนุมัติลำดับถัดไปก่อนอนุมัติ"
+            const showAlertModal = (message) => showAlertPopup(message, true);
 
             // Approve/Reject button handlers
             function setApprovalStatus(status, isReject = false) {
@@ -1865,15 +1935,11 @@
                     // In DX mode, check directNextApproverSelect; otherwise check approverSelect
                     const isDxMode = directNextApproverSelectEl !== null;
                     const nextApproverSelect = isDxMode ? directNextApproverSelectEl : approverSelect;
-                    
-                    // Drive Access tickets are routed to their first approver at creation, so the
-                    // next-approver dropdown may legitimately stay on the pre-filled (self) value
-                    // or be absent. Only other repair types must pick a next approver here.
-                    if ((!nextApproverSelect || !nextApproverSelect.value) && !isDriveAccess) {
-                        showAlertModal('กรุณาเลือกผู้อนุมัติลำดับถัดไปก่อนอนุมัติ');
-                        hasClickedApprove = false; // Reset flag
-                        return;
-                    }
+
+                    // ไม่ต้องเช็ค showAlertModal('กรุณาเลือกผู้อนุมัติลำดับถัดไปก่อนอนุมัติ')
+                    // ตอนกดปุ่ม Approve — ให้ผู้ใช้สลับมาเป็น Approve ได้อิสระ (เช่น หลังกด
+                    // Reject ช่อง "ผู้อนุมัติลำดับถัดไป" ยังแก้ไขได้) เงื่อนไขนี้ถูกย้ายไป
+                    // ตรวจตอนกด Save เท่านั้น (ดู saveBtn handler ด้านล่าง)
                     
                     // For Drive Access Permission: skip department/same-user validation if:
                     // - Repair type is Drive Access Permission
@@ -1888,7 +1954,8 @@
                     
                     if (!skipValidation) {
                         // Check if current user is the same as the selected approver
-                        const selectedApproverId = nextApproverSelect.value;
+                        // (null-safe: ช่องอาจไม่ถูกเรนเดอร์ในบาง branch เช่น readonly/hidden)
+                        const selectedApproverId = nextApproverSelect ? nextApproverSelect.value : '';
                         
                         if (currentUserId && selectedApproverId && currentUserId === selectedApproverId) {
                             showAlertModal('กรุณาเปลี่ยนผู้อนุมัติลำดับถัดไปใหม่');
@@ -1926,6 +1993,11 @@
 
                     // Set approval status
                     setApprovalStatus('Approved', false);
+
+                    // สลับจาก Reject กลับมาเป็น Approve: ช่อง "หมายเหตุการตีกลับ" ถูกซ่อน
+                    // แล้วโดย setApprovalStatus ด้านบน ให้คืนช่อง "ฝ่าย/ผู้อนุมัติลำดับถัดไป"
+                    // ที่ถูก disable ตอนกด Reject กลับมาแก้ไขได้เหมือนก่อนกด Reject
+                    restoreNextApproverFields();
                     
                     // Update ApproverName hidden field with current user's name
                     // The controller will set ApproverUserId to current user when processing the approval
@@ -1995,12 +2067,20 @@
                     const allApproverOptions = Array.from(approverSelect.querySelectorAll('option'))
                         .filter(option => option.value !== '');
 
-                    // Sync department dropdown to match the selected approver's department
-                    const selectedOption = allApproverOptions.find(opt => opt.value === originallySelectedUserId);
-                    if (selectedOption) {
-                        const selectedDept = selectedOption.getAttribute('data-department');
-                        if (selectedDept && departmentSelect.value !== selectedDept) {
-                            departmentSelect.value = selectedDept;
+                    // Sync department dropdown to match the selected approver's department.
+                    // SKIPPED for Drive Access first approver (Step 1, ApproverUserId ยังว่าง,
+                    // NextApproverUserId == CurrentUserId): the controller already defaulted
+                    // the "ฝ่ายที่อนุมัติลำดับถัดไป" dropdown to the Drive-requesting department
+                    // (DriveAccessDepartment) while the pre-selected approver is the first
+                    // approver themselves (a different department). Syncing it back would wipe
+                    // the default and force the user to re-select the department every time.
+                    if (!driveAccessFirstApproverDefaulting) {
+                        const selectedOption = allApproverOptions.find(opt => opt.value === originallySelectedUserId);
+                        if (selectedOption) {
+                            const selectedDept = selectedOption.getAttribute('data-department');
+                            if (selectedDept && departmentSelect.value !== selectedDept) {
+                                departmentSelect.value = selectedDept;
+                            }
                         }
                     }
 
@@ -2144,6 +2224,20 @@
                     if (remarkInputDx) {
                         remarkInputDx.required = newValue === 'Rejected';
                     }
+
+                    // จับคู่พฤติกรรมกับปุ่ม Approve/Reject: เมื่อเลือกสถานะ Rejected ผ่าน
+                    // dropdown ให้ disable ช่องฝ่าย/ผู้อนุมัติลำดับถัดไปเหมือนกดปุ่ม Reject
+                    // เมื่อเลือกสถานะอื่น ให้คืนสถานะตามค่าเริ่มต้นจาก server
+                    if (newValue === 'Rejected') {
+                        if (departmentSelect) {
+                            departmentSelect.disabled = true;
+                        }
+                        if (approverSelect) {
+                            approverSelect.disabled = true;
+                        }
+                    } else {
+                        restoreNextApproverFields();
+                    }
                 });
             }
 
@@ -2190,6 +2284,19 @@
                         }
                         // Allow submission for Rejected status
                         return true;
+                    }
+
+                    // ผู้อนุมัติลำดับถัดไป ต้องเลือกก่อนบันทึก — เช็คเฉพาะตอนกด Save
+                    // (ย้ายมาจากปุ่ม Approve ตาม requirement): เมื่อช่อง "ผู้อนุมัติลำดับถัดไป"
+                    // เป็น dropdown ที่แก้ไขได้ (เช่น First Approver ของรายการขอสิทธิ์ Drive
+                    // ที่ต้อง route งานต่อ) ต้องเลือกผู้อนุมัติลำดับถัดไปก่อน จึงจะบันทึกได้
+                    // — ช่องแบบ readonly/hidden, ช่องที่ถูก lock (disabled) และโหมด DX
+                    // (บันทึกผ่าน DxFinalApproverUserId) ไม่อยู่ในเงื่อนไขนี้
+                    if (approverSelect && !approverSelect.disabled && !approverSelect.value) {
+                        e.preventDefault();
+                        console.log('DEBUG: Blocked on save - No next approver selected');
+                        showAlertModal('กรุณาเลือกผู้อนุมัติลำดับถัดไปก่อนอนุมัติ');
+                        return false;
                     }
 
                     // Validate approver department and user before saving (only for non-DX mode)
@@ -2265,6 +2372,22 @@
                     if (submitStatusDropdown && submitStatusDropdown.value) {
                         statusHidden.value = submitStatusDropdown.value;
                     }
+                });
+            }
+
+            // PDF attachment: show the clear button only after a file is selected
+            // (clears the newly chosen file only - the saved attachment stays untouched)
+            const pdfAttachmentInput = document.getElementById('pdfAttachmentInput');
+            const clearPdfAttachmentBtn = document.getElementById('clearPdfAttachmentBtn');
+
+            if (pdfAttachmentInput && clearPdfAttachmentBtn) {
+                pdfAttachmentInput.addEventListener('change', function () {
+                    clearPdfAttachmentBtn.style.display = pdfAttachmentInput.files.length > 0 ? '' : 'none';
+                });
+
+                clearPdfAttachmentBtn.addEventListener('click', function () {
+                    pdfAttachmentInput.value = '';
+                    clearPdfAttachmentBtn.style.display = 'none';
                 });
             }
         })();

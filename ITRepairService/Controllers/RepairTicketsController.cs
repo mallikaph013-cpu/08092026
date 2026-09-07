@@ -1141,9 +1141,12 @@ public class RepairTicketsController(AppDbContext context, UserManager<Applicati
         // เมื่อ First Approver ขั้นตอนแรกของรายการขอสิทธิ์ Drive เข้ามาแก้ไขรายการเพื่อ Approve
         // ให้ default ช่อง "ฝ่ายที่อนุมัติลำดับถัดไป" (NextApproverDepartment) เป็นฝ่ายตาม
         // DriveAccessDepartment (ฝ่ายที่ขอสิทธิ์ Drive) เพื่อให้เลือกผู้อนุมัติลำดับถัดไปจากฝ่ายนั้น
-        // กรณีครอบคลุม 2 สถานะแรกของ First Approver:
+        // กรณีครอบคลุม 3 สถานะแรกของรายการขอสิทธิ์ Drive (Step 1):
         //  1) ApproverUserId ว่าง + CurrentUserId == NextApproverUserId (First Approver ที่ถูก route มา เปิดครั้งแรกเพื่อ Approve)
         //  2) ApproverUserId เป็น CurrentUser + ยังไม่มี SecondApprover (First Approver กด Approve/แก้ไข แล้วยังไม่ถึงขั้น DX)
+        //  3) ApproverUserId ไม่ว่าง + CurrentUserId != ApproverUserId + ยังไม่มี SecondApprover และ ThirdApprover
+        //     (Approver คนอื่นเข้ามาแก้ไขเพื่อ Approve) — default ช่อง "ฝ่ายที่อนุมัติลำดับถัดไป"
+        //     เป็นฝ่ายที่ขอสิทธิ์ Drive (DriveAccessDepartment) เช่นกัน
         var isDriveAccessFirstStage = ticket.RepairType == RepairType.DriveAccessPermission
             && ticket.ApprovalLevel == 2
             && ticket.Step == 1
@@ -1156,11 +1159,27 @@ public class RepairTicketsController(AppDbContext context, UserManager<Applicati
                 ||
                 (!string.IsNullOrWhiteSpace(ticket.ApproverUserId)
                     && currentUser?.Id == ticket.ApproverUserId)
+                ||
+                (!string.IsNullOrWhiteSpace(ticket.ApproverUserId)
+                    && currentUser?.Id != ticket.ApproverUserId
+                    && string.IsNullOrWhiteSpace(ticket.ThirdApproverUserId))
             );
+        // เก็บค่า NextApproverDepartment ที่เก็บอยู่ในฐานข้อมูลไว้ก่อนถูกเขียนทับด้านล่าง
+        // การเขียนทับด้านล่างมีไว้เพื่อ default ช่อง dropdown "ฝ่ายที่อนุมัติลำดับถัดไป" เท่านั้น
+        // alert "ข้อมูลผู้อนุมัติลำดับถัดไป" ต้องแสดงค่าจาก DB มิฉะนั้นหน้าจอจะแสดง
+        // ฝ่ายอื่นที่ไม่ตรงกับข้อมูลที่บันทึกไว้ (ต่างจาก DB)
+        ViewData["NextApproverDepartmentOriginal"] = ticket.NextApproverDepartment;
+
         if (isDriveAccessFirstApproverActing && !string.IsNullOrWhiteSpace(ticket.DriveAccessDepartment))
         {
             ticket.NextApproverDepartment = ticket.DriveAccessDepartment;
             selectedApproverDepartment = ticket.DriveAccessDepartment;
+
+            // แจ้ง view (JS initApproverFilter) ว่าห้าม sync ค่าช่อง "ฝ่ายที่อนุมัติลำดับถัดไป"
+            // กลับไปเป็นแผนกของผู้อนุมัติที่ถูกเลือกไว้ (ซึ่งเป็น First Approver เอง คนละฝ่ายกับ
+            // ฝ่ายที่ขอสิทธิ์ Drive) มิฉะนั้นค่า default DriveAccessDepartment จะถูกเขียนทับ
+            // ตอนโหลดหน้าและผู้ใช้ต้องเลือกฝ่ายใหม่ทุกครั้ง
+            ViewData["DriveAccessFirstApproverDefaulting"] = true;
         }
 
         await PopulateApproverSelectionsAsync(selectedApproverDepartment, ticket.ApproverUserId);
@@ -1363,6 +1382,7 @@ public class RepairTicketsController(AppDbContext context, UserManager<Applicati
         var originalApproverName = existingTicket.ApproverName;
         var originalApproverDepartment = existingTicket.ApproverDepartment;
         var originalAssignedItUserId = existingTicket.AssignedItUserId;
+        var originalNextApproverUserId = existingTicket.NextApproverUserId;
         
         // Get current user department early (needed for DX checks)
         var currentUserDepartment = currentUser?.Department?.Trim() ?? string.Empty;
@@ -1887,6 +1907,26 @@ public class RepairTicketsController(AppDbContext context, UserManager<Applicati
                 Console.WriteLine($"DEBUG: Level1 approval routed NextApprover to '{existingTicket.NextApproverUserId}' - '{existingTicket.NextApproverName}' ({existingTicket.NextApproverDepartment})");
             }
 
+            // ฝ่ายที่อนุมัติลำดับถัดไป = ฝ่ายที่ต้องการขอสิทธิ์ Drive (DriveAccessDepartment):
+            // เมื่อ First Approver ของรายการขอสิทธิ์ Drive (ก่อนบันทึก ApproverUserId ยังว่าง
+            // && NextApproverUserId == CurrentUserId && Step == 1) กด Approve โดยไม่ได้เลือก
+            // ผู้อนุมัติลำดับถัดไปเป็นคนอื่น ให้บันทึก NextApproverDepartment เป็นฝ่ายที่ขอ
+            // สิทธิ์ Drive ตามค่า default ที่แสดงบนฟอร์ม (มิฉะนั้นค่าจะค้างเป็นฝ่ายของ
+            // First Approver เอง และต้องกลับมาเลือกฝ่ายใหม่ในครั้งถัดไป)
+            // กรณีเลือกผู้อนุมัติลำดับถัดไปเป็นคนอื่นไว้แล้ว จะเคารพการเลือกนั้น (ไม่เขียนทับ)
+            var isFirstApproverOfDriveTicket = existingTicket.RepairType == RepairType.DriveAccessPermission
+                && string.IsNullOrWhiteSpace(originalApproverUserId)
+                && string.Equals(originalNextApproverUserId?.Trim(), currentUser.Id.Trim(), StringComparison.Ordinal)
+                && !string.IsNullOrWhiteSpace(existingTicket.DriveAccessDepartment);
+
+            if (isFirstApproverOfDriveTicket
+                && (string.IsNullOrWhiteSpace(phaseATargetUserId)
+                    || string.Equals(phaseATargetUserId.Trim(), currentUser.Id.Trim(), StringComparison.Ordinal)))
+            {
+                existingTicket.NextApproverDepartment = existingTicket.DriveAccessDepartment.Trim();
+                Console.WriteLine($"DEBUG: First Drive approver approved - NextApproverDepartment set to DriveAccessDepartment '{existingTicket.NextApproverDepartment}'");
+            }
+
             // Per spec: DxFinalApprover fields are recorded only when the routed
             // NextApprover (CurrentUserId == NextApproverUserId, ApprovalLevel == 1)
             // later clicks Approved. Undo the provisional assignment made earlier
@@ -2361,6 +2401,23 @@ public class RepairTicketsController(AppDbContext context, UserManager<Applicati
             }
         }
 
+        // ผู้อนุมัติลำดับถัดไป ต้องเลือกก่อนบันทึก (Save):
+        // First Approver ของรายการขอสิทธิ์ Drive (ก่อนบันทึก ApproverUserId ยังว่าง
+        // && NextApproverUserId == CurrentUserId && ยังไม่มี SecondApprover) ต้องเลือก
+        // ผู้อนุมัติลำดับถัดไปจากฟอร์มก่อน จึงจะบันทึกได้ (ยกเว้นกรณี Reject — ตีกลับ
+        // ให้ผู้แจ้ง ไม่ต้องเลือก และโหมด DX ที่บันทึกผ่าน DxFinalApproverUserId)
+        var isDriveFirstApproverSaving = existingTicket.RepairType == RepairType.DriveAccessPermission
+            && canEditStatus
+            && effectiveStatus != TicketStatus.Rejected
+            && string.IsNullOrWhiteSpace(originalApproverUserId)
+            && string.Equals(originalNextApproverUserId?.Trim(), currentUser?.Id?.Trim(), StringComparison.Ordinal)
+            && string.IsNullOrWhiteSpace(existingTicket.SecondApproverUserId);
+
+        if (isDriveFirstApproverSaving && string.IsNullOrWhiteSpace(ticket.NextApproverUserId?.Trim()))
+        {
+            ModelState.AddModelError(nameof(RepairTicket.NextApproverUserId), "กรุณาเลือกผู้อนุมัติลำดับถัดไปก่อนบันทึก");
+        }
+
         if (!ModelState.IsValid)
         {
             // TEMP DIAGNOSTIC: log why the model state was rejected.
@@ -2389,6 +2446,20 @@ public class RepairTicketsController(AppDbContext context, UserManager<Applicati
             ViewData["NextApproverDepartment"] = existingTicket.NextApproverDepartment;
             await PopulateItSupportSelectionsAsync(existingTicket.AssignedItUserId);
             await PopulateApproverSelectionsAsync(existingTicket.ApproverDepartment ?? existingTicket.NextApproverDepartment, existingTicket.ApproverUserId);
+
+            // เมื่อ First Approver ของรายการขอสิทธิ์ Drive บันทึกไม่ผ่านเพราะยังไม่ได้เลือก
+            // ผู้อนุมัติลำดับถัดไป ให้หน้าที่แสดงซ้ำคงค่า default "ฝ่ายที่อนุมัติลำดับถัดไป"
+            // เป็นฝ่ายที่ขอสิทธิ์ Drive (DriveAccessDepartment) เหมือนตอนเปิดหน้าครั้งแรก
+            // (พร้อมกัน JS initApproverFilter sync ค่าฝ่ายกลับไปเป็นแผนกของตัวเอง)
+            if (isDriveFirstApproverSaving)
+            {
+                ViewData["DriveAccessFirstApproverDefaulting"] = true;
+
+                if (!string.IsNullOrWhiteSpace(existingTicket.DriveAccessDepartment))
+                {
+                    await PopulateApproverSelectionsAsync(existingTicket.DriveAccessDepartment, existingTicket.ApproverUserId);
+                }
+            }
             // Re-populate the Drive access department dropdown, otherwise the redisplayed form
             // loses all options and the previously selected department appears to vanish.
             await PopulateDriveAccessDepartmentSelectionsAsync(existingTicket.DriveAccessDepartment);
