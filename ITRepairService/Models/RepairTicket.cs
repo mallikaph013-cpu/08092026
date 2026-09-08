@@ -130,11 +130,11 @@ public class RepairTicket
 
      [StringLength(450)]
      [Display(Name = "ผู้รับมอบหมายงาน (IT)")]
-     public string AssignedItUserId { get; set; } = string.Empty;
+     public string? AssignedItUserId { get; set; } = string.Empty;
 
     [StringLength(150)]
     [Display(Name = "ชื่อผู้รับมอบหมายงาน")]
-    public string AssignedItName { get; set; } = string.Empty;
+    public string? AssignedItName { get; set; } = string.Empty;
 
     [StringLength(450)]
     [Display(Name = "รหัสผู้แจ้ง")]

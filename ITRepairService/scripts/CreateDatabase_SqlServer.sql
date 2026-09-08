@@ -179,8 +179,8 @@ BEGIN
         [ThirdApproverUserId]  NVARCHAR(450)    NULL,
         [ThirdApproverName]    NVARCHAR(150)    NULL,
         [ApprovalLevel]        INT              NOT NULL DEFAULT 1,
-        [AssignedItUserId]     NVARCHAR(450)    NOT NULL DEFAULT N'',
-        [AssignedItName]       NVARCHAR(150)    NOT NULL DEFAULT N'',
+        [AssignedItUserId]     NVARCHAR(450)    NULL,
+        [AssignedItName]       NVARCHAR(150)    NULL,
         [RequesterUserId]      NVARCHAR(450)    NULL,
         [DocumentNo]           NVARCHAR(20)     NULL,
 

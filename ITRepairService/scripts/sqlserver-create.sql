@@ -425,7 +425,7 @@ IF NOT EXISTS (
     WHERE [MigrationId] = N'20260427025810_AddItAssignmentFields'
 )
 BEGIN
-    ALTER TABLE [RepairTickets] ADD [AssignedItName] nvarchar(150) NOT NULL DEFAULT N'';
+    ALTER TABLE [RepairTickets] ADD [AssignedItName] nvarchar(150) NULL;
 END;
 
 IF NOT EXISTS (
@@ -433,7 +433,7 @@ IF NOT EXISTS (
     WHERE [MigrationId] = N'20260427025810_AddItAssignmentFields'
 )
 BEGIN
-    ALTER TABLE [RepairTickets] ADD [AssignedItUserId] nvarchar(450) NOT NULL DEFAULT N'';
+    ALTER TABLE [RepairTickets] ADD [AssignedItUserId] nvarchar(450) NULL;
 END;
 
 IF NOT EXISTS (

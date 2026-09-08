@@ -1067,15 +1067,31 @@ public class RepairTicketsController(AppDbContext context, UserManager<Applicati
             .ToListAsync();
 
         // The current user already pressed Approve on this ticket only when the status history
-        // holds an approval event written by this user, i.e. a transition into Approved or an
-        // entry explicitly tagged with the "Approved" action (approval while already Approved).
-        // Approver id columns are NOT used here: they are also filled on Reject and by routing,
-        // so a NextApprover who never approved must keep the Save button enabled.
+        // holds an approval event written by this user IN THE CURRENT approval round, i.e. a
+        // transition into Approved or an entry explicitly tagged with the "Approved" action
+        // (approval while already Approved). Approver id columns are NOT used here: they are
+        // also filled on Reject and by routing, so a NextApprover who never approved must keep
+        // the Save button enabled.
+        // A rejection (ToStatus == Rejected) or a transition back to Open starts a NEW round:
+        // approval entries from earlier rounds must NOT lock the Save button, otherwise an
+        // approver could never approve the same ticket again after a reject/resubmit cycle.
+        var lastRoundResetIndex = -1;
+        for (var i = 0; i < timelineEntries.Count; i++)
+        {
+            var entryToStatus = timelineEntries[i].ToStatus;
+            if (entryToStatus == TicketStatus.Rejected || entryToStatus == TicketStatus.Open)
+            {
+                lastRoundResetIndex = i;
+            }
+        }
+
         var hasCurrentUserApproved = currentUser is not null
-            && timelineEntries.Any(entry => entry.ToStatus == TicketStatus.Approved
-                && string.Equals(entry.ChangedByUserId, currentUser.Id, StringComparison.Ordinal)
-                && (entry.FromStatus != TicketStatus.Approved
-                    || string.Equals(entry.Action, ApprovedHistoryAction, StringComparison.Ordinal)));
+            && timelineEntries
+                .Skip(lastRoundResetIndex + 1)
+                .Any(entry => entry.ToStatus == TicketStatus.Approved
+                    && string.Equals(entry.ChangedByUserId, currentUser.Id, StringComparison.Ordinal)
+                    && (entry.FromStatus != TicketStatus.Approved
+                        || string.Equals(entry.Action, ApprovedHistoryAction, StringComparison.Ordinal)));
         ViewData["HasCurrentUserApproved"] = hasCurrentUserApproved;
 
         var latestStatusEditorUserId = timelineEntries.LastOrDefault()?.ChangedByUserId;
@@ -1498,16 +1514,36 @@ public class RepairTicketsController(AppDbContext context, UserManager<Applicati
             || string.Equals(latestStatusEditorUserId, currentUser?.Id, StringComparison.Ordinal);
 
         // Same rule as the Edit (GET) action: the Save button stays locked only for a user
-        // who has already pressed Approve on this ticket. Evaluated before any mutation
-        // so a redisplayed form reflects the state the user actually submitted from.
+        // who has already pressed Approve on this ticket IN THE CURRENT approval round.
+        // Evaluated before any mutation so a redisplayed form reflects the state the user
+        // actually submitted from. A rejection (ToStatus == Rejected) or a transition back
+        // to Open starts a new round: stale approvals from earlier rounds must not lock the
+        // Save button after a reject/resubmit cycle. (persistedTimelineStatuses above is
+        // collapsed, so the round reset index must come from this full timeline instead.)
+        var approvalTimelineEntries = await _context.RepairTicketStatusHistories
+            .AsNoTracking()
+            .Where(history => history.RepairTicketId == existingTicket.Id)
+            .OrderBy(history => history.ChangedAt)
+            .ThenBy(history => history.Id)
+            .Select(history => new { history.FromStatus, history.ToStatus, history.ChangedByUserId, history.Action })
+            .ToListAsync();
+        var lastRoundResetIndex = -1;
+        for (var i = 0; i < approvalTimelineEntries.Count; i++)
+        {
+            var entryToStatus = approvalTimelineEntries[i].ToStatus;
+            if (entryToStatus == TicketStatus.Rejected || entryToStatus == TicketStatus.Open)
+            {
+                lastRoundResetIndex = i;
+            }
+        }
+
         var hasCurrentUserApproved = currentUser is not null
-            && await _context.RepairTicketStatusHistories
-                .AsNoTracking()
-                .AnyAsync(history => history.RepairTicketId == existingTicket.Id
-                    && history.ToStatus == TicketStatus.Approved
-                    && history.ChangedByUserId == currentUser.Id
-                    && (history.FromStatus != TicketStatus.Approved
-                        || history.Action == ApprovedHistoryAction));
+            && approvalTimelineEntries
+                .Skip(lastRoundResetIndex + 1)
+                .Any(entry => entry.ToStatus == TicketStatus.Approved
+                    && string.Equals(entry.ChangedByUserId, currentUser.Id, StringComparison.Ordinal)
+                    && (entry.FromStatus != TicketStatus.Approved
+                        || string.Equals(entry.Action, ApprovedHistoryAction, StringComparison.Ordinal)));
 
         var persistedStatusFlow = persistedTimelineStatuses.Count > 0
             ? new List<TicketStatus>(persistedTimelineStatuses)
@@ -1586,7 +1622,24 @@ public class RepairTicketsController(AppDbContext context, UserManager<Applicati
             existingTicket.IssueDescription = ticket.IssueDescription;
             // Don't update RepairType - preserve the original value from creation
             // existingTicket.RepairType = ticket.RepairType;
-            existingTicket.DriveAccessDepartment = ticket.DriveAccessDepartment?.Trim() ?? string.Empty;
+            // Preserve DriveAccessDepartment when the form did not post a value.
+            // The select is not rendered (or is disabled) for Rejected tickets and
+            // read-only views, so the browser submits no value — overwriting with an
+            // empty string here would wipe the requester's chosen department. A
+            // rejected ticket must keep DriveAccessDepartment intact so it can be
+            // re-submitted without re-selecting the department.
+            if (existingTicket.RepairType == RepairType.DriveAccessPermission)
+            {
+                var driveAccessDeptFromForm = ticket.DriveAccessDepartment?.Trim();
+                if (!string.IsNullOrWhiteSpace(driveAccessDeptFromForm))
+                {
+                    existingTicket.DriveAccessDepartment = driveAccessDeptFromForm;
+                }
+            }
+            else
+            {
+                existingTicket.DriveAccessDepartment = string.Empty;
+            }
             
             // Allow requester to edit NextApprover fields when status is Open or Rejected
             // For next approver (level 1 open), keep NextApprover fields as-is (readonly in view)
@@ -2191,17 +2244,12 @@ public class RepairTicketsController(AppDbContext context, UserManager<Applicati
             existingTicket.NextApproverName = null;
             existingTicket.NextApproverDepartment = null;
             Console.WriteLine($"DEBUG: Cleared NextApprover fields for Rejected ticket");
-            
-            // Set ApproverUserId to current user so the rejected ticket still appears in the approver's Index
-            if (currentUser != null && canEditStatus)
-            {
-                existingTicket.ApproverUserId = currentUser.Id;
-                existingTicket.ApproverName = !string.IsNullOrWhiteSpace(currentUser.FullName)
-                    ? currentUser.FullName
-                    : (currentUser.UserName ?? currentUser.Email ?? "Unknown");
-                existingTicket.ApproverDepartment ??= currentUser.Department?.Trim();
-                Console.WriteLine($"DEBUG: Set ApproverUserId to current user for Rejected ticket: '{currentUser.Id}'");
-            }
+
+            // NOTE: Approver/Second/Third/DxFinal/AssignedIt fields are intentionally NOT set here.
+            // They are all cleared to NULL (and Step reset to 1) right before SaveChanges below,
+            // so a rejected ticket goes back to the requester with no approver/assignment data.
+            // NextApproverDepartment is re-defaulted there to the requester's department
+            // (ฝ่ายเดียวกับ RequesterUserId) so the re-submission starts from the requester side.
         }
 
         // Handle NextApprover fields - allow manual override from form if provided
@@ -2508,6 +2556,56 @@ public class RepairTicketsController(AppDbContext context, UserManager<Applicati
             existingTicket.PdfAttachmentFileSize = pdfAttachment.Length;
         }
 
+        // Rejected tickets go back to the requester: clear every approver and IT-assignment
+        // field to NULL and reset the workflow Step to 1. This runs after all approval /
+        // assignment logic above so nothing re-populates these values on a reject.
+        if (existingTicket.Status == TicketStatus.Rejected)
+        {
+            existingTicket.ApproverDepartment = null;
+            existingTicket.ApproverUserId = null;
+            existingTicket.ApproverName = null;
+            existingTicket.SecondApproverUserId = null;
+            existingTicket.SecondApproverName = null;
+            existingTicket.SecondApproverDepartment = null;
+            existingTicket.ThirdApproverUserId = null;
+            existingTicket.ThirdApproverName = null;
+            existingTicket.ThirdApproverDepartment = null;
+            existingTicket.DxFinalApproverUserId = null;
+            existingTicket.DxFinalApproverName = null;
+            existingTicket.DxFinalApproverDepartment = null;
+            existingTicket.AssignedItUserId = null;
+            existingTicket.AssignedItName = null;
+            existingTicket.Step = 1;
+
+            // NOTE: DriveAccessDepartment (ฝ่ายที่ขอสิทธิ์ Drive) is intentionally NOT cleared here —
+            // it is part of the requester's original request and must survive a reject so the
+            // ticket can be re-submitted without re-selecting the department (the requester-edit
+            // form does not post this field for Rejected tickets, and the re-open routing relies
+            // on it to pick the approver of the Drive-requesting department).
+
+            // กรณี Rejected: default ช่อง "ฝ่ายที่อนุมัติลำดับถัดไป" (NextApproverDepartment)
+            // กลับไปเป็นฝ่ายเดียวกับผู้แจ้ง (RequesterUserId) เพื่อให้ผู้แจ้งแก้ไข/ส่งงานกลับมาใหม่
+            // โดยเริ่มจากฝ่ายของผู้แจ้งเสมอ (เช่นเดียวกับค่า default ตอน Create)
+            // ส่วน NextApproverUserId/Name ยังคงเคลียร์เป็น NULL ให้ผู้แจ้งเลือกผู้อนุมัติใหม่
+            var rejectedRequesterUser = string.IsNullOrWhiteSpace(existingTicket.RequesterUserId)
+                ? null
+                : await _userManager.FindByIdAsync(existingTicket.RequesterUserId);
+            var rejectedRequesterDepartment = rejectedRequesterUser?.Department?.Trim();
+            if (string.IsNullOrWhiteSpace(rejectedRequesterDepartment))
+            {
+                // Fallback: ใช้ฝ่ายที่บันทึกไว้ในรายการ (ฝ่ายของผู้แจ้งตอนสร้างรายการ)
+                rejectedRequesterDepartment = existingTicket.Department?.Trim();
+            }
+
+            existingTicket.NextApproverUserId = null;
+            existingTicket.NextApproverName = null;
+            existingTicket.NextApproverDepartment = string.IsNullOrWhiteSpace(rejectedRequesterDepartment)
+                ? null
+                : rejectedRequesterDepartment;
+
+            Console.WriteLine($"DEBUG: Cleared approver/IT-assignment fields and reset Step to 1 for Rejected ticket {existingTicket.Id}; NextApproverDepartment defaulted to requester's department '{existingTicket.NextApproverDepartment}'");
+        }
+
         try
         {
             existingTicket.UpdatedAt = DateTime.UtcNow;
@@ -2772,6 +2870,12 @@ public class RepairTicketsController(AppDbContext context, UserManager<Applicati
         var changedByName = !string.IsNullOrWhiteSpace(currentUser?.FullName)
             ? currentUser.FullName
             : (currentUser?.UserName ?? User.Identity?.Name ?? "Unknown");
+
+        // กรณี Status == Deleted ต้องบันทึกผู้ลบ (current user) ลงใน UpdatedByName
+        // ของแถว RepairTicket เองด้วย (UpdatedAt ถูก stamp ด้านบนแล้ว) — ค่าเดียวกับ
+        // ChangedByName ใน StatusHistories ด้านล่าง ส่วน ChangedByUserId ของ history
+        // เก็บ CurrentUserId ดิบไว้เพื่อการ audit เหมือนเดิม
+        ticket.UpdatedByName = changedByName;
 
         ticket.StatusHistories.Add(new RepairTicketStatusHistory
         {

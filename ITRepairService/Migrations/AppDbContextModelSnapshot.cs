@@ -213,12 +213,10 @@ namespace ITRepairService.Migrations
                         .HasColumnType("nvarchar(450)");
 
                     b.Property<string>("AssignedItName")
-                        .IsRequired()
                         .HasMaxLength(150)
                         .HasColumnType("nvarchar(150)");
 
                     b.Property<string>("AssignedItUserId")
-                        .IsRequired()
                         .HasMaxLength(450)
                         .HasColumnType("nvarchar(450)");
 

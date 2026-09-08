@@ -716,12 +716,17 @@
                         </div>
                     }
 
-                    @if (isDriveAccessRepairType && (!requesterEditMode || isRequesterEditOpen))
+                    @if (isDriveAccessRepairType && (!requesterEditMode || isRequesterEditOpen || isRequesterEditRejected))
                     {
                         // Read-only when the ticket is Approved/InProgress/Complete/Closed (isApprovedOrBeyond)
                         // or when a non-requester views an Open ticket (isNotRequesterAndOpen).
+                        // A requester editing their own Rejected ticket (isRequesterEditRejected) works
+                        // exactly like an Open ticket: the dropdown stays rendered and enabled so the
+                        // requester can fix / re-select the department before re-submitting. (The Edit
+                        // POST preserves the saved value whenever the form posts none, e.g. read-only
+                        // views, so nothing is cleared by accident.)
                         var isDriveAccessReadOnly = (isApprovedOrBeyond || isNotRequesterAndOpen)
-                            || Model.Status != ITRepairService.Models.TicketStatus.Open;
+                            || (Model.Status != ITRepairService.Models.TicketStatus.Open && !isRequesterEditRejected);
                         var driveAccessDepartmentList = driveAccessDepartments
                             .Select(item => item.Text)
                             .Where(text => !string.IsNullOrWhiteSpace(text))
