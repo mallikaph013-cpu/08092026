@@ -439,7 +439,7 @@ public class RepairTicketsController(AppDbContext context, UserManager<Applicati
             .ToDictionary(group => group.Key, group => group.ToList());
 
         var items = new List<RepairTicketPerformanceCaseViewModel>();
-        var nowUtc = DateTime.UtcNow;
+        var nowLocal = DateTime.Now;
         foreach (var ticket in tickets)
         {
             if (!historiesByTicketId.TryGetValue(ticket.Id, out var ticketHistory))
@@ -457,7 +457,7 @@ public class RepairTicketsController(AppDbContext context, UserManager<Applicati
                 continue;
             }
 
-            var endAtUtc = closedEvent?.ChangedAt ?? nowUtc;
+            var endAtUtc = closedEvent?.ChangedAt ?? nowLocal;
             if (endAtUtc < assignedEvent.ChangedAt)
             {
                 continue;
@@ -765,7 +765,7 @@ public class RepairTicketsController(AppDbContext context, UserManager<Applicati
 
                 if (!hasReadAfterLatestReject)
                 {
-                    ticket.UpdatedAt = DateTime.UtcNow;
+                    ticket.UpdatedAt = DateTime.Now;
                     ticket.UpdatedByName = GetActorName(currentUser);
                     AddStatusHistory(ticket, ticket.Status, ticket.Status, currentUser, "RejectedRead");
                     await _context.SaveChangesAsync();
@@ -986,7 +986,7 @@ public class RepairTicketsController(AppDbContext context, UserManager<Applicati
         }
 
         var actorName = GetActorName(currentUser);
-        ticket.CreatedAt = DateTime.UtcNow;
+        ticket.CreatedAt = DateTime.Now;
         ticket.CreatedByName = actorName;
         ticket.RequesterUserId = currentUser?.Id;
         ticket.DocumentNo = await GenerateDocumentNo(ticket.CreatedAt);
@@ -1694,7 +1694,7 @@ public class RepairTicketsController(AppDbContext context, UserManager<Applicati
                 existingTicket.Status = originalStatus;
             }
             
-            existingTicket.UpdatedAt = DateTime.UtcNow;
+            existingTicket.UpdatedAt = DateTime.Now;
             existingTicket.UpdatedByName = GetActorName(currentUser);
 
             if (!TryValidateModel(existingTicket))
@@ -1926,7 +1926,7 @@ public class RepairTicketsController(AppDbContext context, UserManager<Applicati
             // Record "ฝ่ายที่อนุมัติ" from the approver who actually approved.
             existingTicket.ApproverDepartment = currentUser.Department?.Trim();
 
-            existingTicket.UpdatedAt = DateTime.UtcNow;
+            existingTicket.UpdatedAt = DateTime.Now;
             existingTicket.UpdatedByName = GetActorName(currentUser);
 
 
@@ -2128,7 +2128,7 @@ public class RepairTicketsController(AppDbContext context, UserManager<Applicati
                 : (currentUser.UserName ?? currentUser.Email ?? "Unknown");
             existingTicket.SecondApproverDepartment = currentUser.Department?.Trim() ?? string.Empty;
 
-            existingTicket.UpdatedAt = DateTime.UtcNow;
+            existingTicket.UpdatedAt = DateTime.Now;
             existingTicket.UpdatedByName = GetActorName(currentUser);
 
             if (existingTicket.RepairType == RepairType.DriveAccessPermission)
@@ -2295,7 +2295,7 @@ public class RepairTicketsController(AppDbContext context, UserManager<Applicati
                 : (currentUser.UserName ?? currentUser.Email ?? "Unknown");
             existingTicket.ThirdApproverDepartment = currentUser.Department?.Trim() ?? string.Empty;
 
-            existingTicket.UpdatedAt = DateTime.UtcNow;
+            existingTicket.UpdatedAt = DateTime.Now;
             existingTicket.UpdatedByName = GetActorName(currentUser);
 
 
@@ -2608,7 +2608,7 @@ public class RepairTicketsController(AppDbContext context, UserManager<Applicati
 
         try
         {
-            existingTicket.UpdatedAt = DateTime.UtcNow;
+            existingTicket.UpdatedAt = DateTime.Now;
             existingTicket.UpdatedByName = GetActorName(currentUser);
 
             // The current user approved in this request when the ticket ends up Approved and this
@@ -2865,7 +2865,7 @@ public class RepairTicketsController(AppDbContext context, UserManager<Applicati
 
         var previousStatus = ticket.Status;
         ticket.Status = TicketStatus.Deleted;
-        ticket.UpdatedAt = DateTime.UtcNow;
+        ticket.UpdatedAt = DateTime.Now;
 
         var changedByName = !string.IsNullOrWhiteSpace(currentUser?.FullName)
             ? currentUser.FullName
@@ -2884,7 +2884,7 @@ public class RepairTicketsController(AppDbContext context, UserManager<Applicati
             ToStatus = TicketStatus.Deleted,
             Action = "Deleted",
             Remark = null,
-            ChangedAt = DateTime.UtcNow,
+            ChangedAt = DateTime.Now,
             ChangedByUserId = currentUser?.Id ?? string.Empty,
             ChangedByName = changedByName
         });
@@ -2927,7 +2927,7 @@ public class RepairTicketsController(AppDbContext context, UserManager<Applicati
 
         var previousStatus = ticket.Status;
         ticket.Status = TicketStatus.Closed;
-        ticket.UpdatedAt = DateTime.UtcNow;
+        ticket.UpdatedAt = DateTime.Now;
         ticket.UpdatedByName = GetActorName(currentUser);
         AddStatusHistory(ticket, previousStatus, ticket.Status, currentUser, "Closed");
         _context.Update(ticket);

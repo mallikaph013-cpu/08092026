@@ -29,7 +29,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
             ToStatus = toStatus,
             Action = action,
             Remark = string.IsNullOrWhiteSpace(remark) ? null : remark.Trim(),
-            ChangedAt = DateTime.UtcNow,
+            ChangedAt = DateTime.Now,
             ChangedByUserId = changedByUserId,
             ChangedByName = changedByName
         });

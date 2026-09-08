@@ -278,7 +278,7 @@ public class AdminUsersController(
         user.Section = model.Section.Trim();
         user.IsActive = model.IsActive;
         user.MustChangePassword = model.MustChangePassword;
-        user.UpdatedAt = DateTime.UtcNow;
+        user.UpdatedAt = DateTime.Now;
         user.UpdatedByName = actorName;
 
         if (!string.Equals(user.UserName, model.UserName.Trim(), StringComparison.OrdinalIgnoreCase))
@@ -417,7 +417,7 @@ public class AdminUsersController(
     {
         var actor = await _userManager.GetUserAsync(User);
         var actorName = GetActorName(actor);
-        var nowUtc = DateTime.UtcNow;
+        var nowLocal = DateTime.Now;
 
         var availableRoles = await _roleManager.Roles
             .OrderBy(role => role.Name)
@@ -506,8 +506,8 @@ public class AdminUsersController(
             EmailConfirmed = true,
             CreatedByName = actorName,
             UpdatedByName = actorName,
-            CreatedAt = nowUtc,
-            UpdatedAt = nowUtc
+            CreatedAt = nowLocal,
+            UpdatedAt = nowLocal
         };
 
         var result = await _userManager.CreateAsync(user, model.Password);
@@ -645,7 +645,7 @@ public class AdminUsersController(
 
         var actor = await _userManager.GetUserAsync(User);
         var actorName = GetActorName(actor);
-        var nowUtc = DateTime.UtcNow;
+        var nowLocal = DateTime.Now;
 
         var users = await _dbContext.Users.ToListAsync();
         var requesterTickets = await _dbContext.RepairTickets.ToListAsync();
@@ -662,7 +662,7 @@ public class AdminUsersController(
             }
 
             user.Department = newDepartment;
-            user.UpdatedAt = nowUtc;
+            user.UpdatedAt = nowLocal;
             user.UpdatedByName = actorName;
             updatedUserCount++;
         }
@@ -672,7 +672,7 @@ public class AdminUsersController(
             if (string.Equals(NormalizeMasterValue(ticket.Department), oldDepartment, StringComparison.OrdinalIgnoreCase))
             {
                 ticket.Department = newDepartment;
-                ticket.UpdatedAt = nowUtc;
+                ticket.UpdatedAt = nowLocal;
                 ticket.UpdatedByName = actorName;
                 updatedRequesterTicketCount++;
             }
@@ -683,7 +683,7 @@ public class AdminUsersController(
             }
 
             ticket.ApproverDepartment = newDepartment;
-            ticket.UpdatedAt = nowUtc;
+            ticket.UpdatedAt = nowLocal;
             ticket.UpdatedByName = actorName;
             updatedApproverTicketCount++;
         }

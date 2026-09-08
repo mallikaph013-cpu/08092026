@@ -29,7 +29,7 @@ public class RepairTicketStatusHistory
     public string? Remark { get; set; }
 
     [Display(Name = "บันทึกเมื่อ")]
-    public DateTime ChangedAt { get; set; } = DateTime.UtcNow;
+    public DateTime ChangedAt { get; set; } = DateTime.Now;
 
     [StringLength(450)]
     [Display(Name = "ผู้บันทึก (Id)")]

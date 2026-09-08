@@ -104,7 +104,7 @@ public class NewsController(
 
         var currentUser = await _userManager.GetUserAsync(User);
         var actorName = GetActorName(currentUser);
-        var nowUtc = DateTime.UtcNow;
+        var nowLocal = DateTime.Now;
 
         var newsItem = new NewsItem
         {
@@ -115,8 +115,8 @@ public class NewsController(
             UpdatedByName = actorName,
             AttachmentFileName = savedAttachmentName,
             AttachmentUrl = savedAttachmentUrl,
-            CreatedAt = nowUtc,
-            UpdatedAt = nowUtc
+            CreatedAt = nowLocal,
+            UpdatedAt = nowLocal
         };
 
         _dbContext.NewsItems.Add(newsItem);
@@ -187,7 +187,7 @@ public class NewsController(
 
         var currentUser = await _userManager.GetUserAsync(User);
         newsItem.UpdatedByName = GetActorName(currentUser);
-        newsItem.UpdatedAt = DateTime.UtcNow;
+        newsItem.UpdatedAt = DateTime.Now;
 
         await _dbContext.SaveChangesAsync();
 

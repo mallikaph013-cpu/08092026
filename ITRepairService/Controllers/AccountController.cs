@@ -89,8 +89,8 @@ public class AccountController(
                     IsActive = true,
                     CreatedByName = ldapResult.DisplayName,
                     UpdatedByName = ldapResult.DisplayName,
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
+                    CreatedAt = DateTime.Now,
+                    UpdatedAt = DateTime.Now
                 };
 
                 // Create with a random password (user will authenticate via AD)
@@ -432,8 +432,8 @@ public class AccountController(
             EmailConfirmed = true,
             CreatedByName = model.FullName,
             UpdatedByName = model.FullName,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
+            CreatedAt = DateTime.Now,
+            UpdatedAt = DateTime.Now
         };
 
         var createResult = await _userManager.CreateAsync(user, model.Password);

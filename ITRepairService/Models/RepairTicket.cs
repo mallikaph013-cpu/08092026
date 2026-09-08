@@ -46,7 +46,7 @@ public class RepairTicket
     public TicketStatus Status { get; set; } = TicketStatus.Open;
 
     [Display(Name = "สร้างเมื่อ")]
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime CreatedAt { get; set; } = DateTime.Now;
 
     [StringLength(120)]
     [Display(Name = "ผู้สร้าง")]
