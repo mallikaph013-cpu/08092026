@@ -799,6 +799,17 @@
                                 <small>ขนาด: @(((Model.PdfAttachmentFileSize ?? 0) / 1024.0).ToString("N2")) KB</small>
                             </div>
                         }
+                        @if (isApprovedOrBeyond)
+                        {
+                            @* สถานะ Approved ขึ้นไป (InProgress/Complete/Closed): ไฟล์แนบ PDF ไม่สามารถกด
+                               แก้ไขได้อีกแล้ว — งานผ่านการอนุมัติแล้ว ไม่ควรแนบ/เปลี่ยนไฟล์เพิ่ม *@
+                            <input type="file" name="pdfAttachment" id="pdfAttachmentInput" class="form-control flex-grow-1" accept=".pdf" disabled readonly />
+                            <div class="form-text">
+                                <i class="fas fa-info-circle me-1"></i>รองรับเฉพาะไฟล์ PDF เท่านั้น ขนาดไฟล์ไม่เกิน 10MB (เลือกไฟล์ใหม่เพื่อแทนที่)
+                            </div>
+                        }
+                        else
+                        {
                         <div class="d-flex align-items-center gap-2">
                             <input type="file" name="pdfAttachment" id="pdfAttachmentInput" class="form-control flex-grow-1" accept=".pdf" />
                             <button type="button" id="clearPdfAttachmentBtn" class="btn btn-outline-danger flex-shrink-0" style="display:none;" title="ลบไฟล์แนบที่เลือก">
@@ -808,6 +819,7 @@
                         <div class="form-text">
                             <i class="fas fa-info-circle me-1"></i>รองรับเฉพาะไฟล์ PDF เท่านั้น ขนาดไฟล์ไม่เกิน 10MB (เลือกไฟล์ใหม่เพื่อแทนที่)
                         </div>
+                        }
                         <span class="text-danger small" data-valmsg-for="pdfAttachment" data-valmsg-replace="true"></span>
                     </div>
 
