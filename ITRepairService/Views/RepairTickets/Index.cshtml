@@ -272,7 +272,8 @@
 
                         var canDeleteTicket = User.IsInRole(ITRepairService.Models.AppRoles.Admin)
                             || ((item.RequesterUserId == currentUserId || isRequesterByName)
-                                && item.Status == ITRepairService.Models.TicketStatus.Open);
+                                && (item.Status == ITRepairService.Models.TicketStatus.Open
+                                    || item.Status == ITRepairService.Models.TicketStatus.Rejected));
 
                         var badgeClass = GetStatusBadgeClass(item.Status);
 
@@ -332,7 +333,7 @@
                                 }
                                 @if (canDeleteTicket)
                                 {
-                                    <form asp-action="ConfirmDelete" asp-route-id="@item.Id" method="post" style="display:inline;" onsubmit="return openDeleteTicketConfirm(this, event);">
+                                    <form asp-action="Delete" asp-route-id="@item.Id" method="post" style="display:inline;" onsubmit="return openDeleteTicketConfirm(this, event);">
                                         @Html.AntiForgeryToken()
                                         <button type="submit" class="btn btn-sm btn-danger btn-auto">
                                             <i class="fas fa-trash me-1"></i>Delete
@@ -411,7 +412,8 @@
 
                                 var canDeleteTicket = User.IsInRole(ITRepairService.Models.AppRoles.Admin)
                                     || ((item.RequesterUserId == currentUserId || isRequesterByName)
-                                        && item.Status == ITRepairService.Models.TicketStatus.Open);
+                                        && (item.Status == ITRepairService.Models.TicketStatus.Open
+                                            || item.Status == ITRepairService.Models.TicketStatus.Rejected));
 
                                 var badgeClass = GetStatusBadgeClass(item.Status);
 

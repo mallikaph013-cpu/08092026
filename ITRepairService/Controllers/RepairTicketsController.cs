@@ -2820,14 +2820,15 @@ public class RepairTicketsController(AppDbContext context, UserManager<Applicati
             return NotFound();
         }
 
-        // Allow Admin, or the ticket requester if the ticket is still Open
+        // Allow Admin, or the ticket requester if the ticket is still Open or Rejected
+        // (ผู้แจ้งลบรายการของตัวเองได้เมื่อสถานะ Open หรือ Rejected)
         if (!User.IsInRole(AppRoles.Admin))
         {
             var currentUser = await _userManager.GetUserAsync(User);
             if (currentUser is null
                 || string.IsNullOrWhiteSpace(currentUser.Id)
                 || ticket.RequesterUserId != currentUser.Id
-                || ticket.Status != TicketStatus.Open)
+                || (ticket.Status != TicketStatus.Open && ticket.Status != TicketStatus.Rejected))
             {
                 return Forbid();
             }
@@ -2851,13 +2852,14 @@ public class RepairTicketsController(AppDbContext context, UserManager<Applicati
             return NotFound();
         }
 
-        // Allow Admin, or the ticket requester if the ticket is still Open
+        // Allow Admin, or the ticket requester if the ticket is still Open or Rejected
+        // (ผู้แจ้งลบรายการของตัวเองได้เมื่อสถานะ Open หรือ Rejected)
         if (!User.IsInRole(AppRoles.Admin))
         {
             if (currentUser is null
                 || string.IsNullOrWhiteSpace(currentUser.Id)
                 || ticket.RequesterUserId != currentUser.Id
-                || ticket.Status != TicketStatus.Open)
+                || (ticket.Status != TicketStatus.Open && ticket.Status != TicketStatus.Rejected))
             {
                 return Forbid();
             }
