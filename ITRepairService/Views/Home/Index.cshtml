@@ -55,7 +55,7 @@
                             <span style="color: #c0d0d8;">|</span>
                             <span class="d-inline-flex align-items-center gap-1 px-2 py-1 rounded-pill" style="background: rgba(99, 102, 241, 0.06);">
                                 <i class="fas fa-clock" style="color: #6366f1; font-size: 0.75rem;"></i>
-                                <span>@news.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</span>
+                                <span>@news.CreatedAt.ToString("dd/MM/yyyy HH:mm")</span>
                             </span>
                             @if (!string.IsNullOrWhiteSpace(news.AttachmentUrl))
                             {

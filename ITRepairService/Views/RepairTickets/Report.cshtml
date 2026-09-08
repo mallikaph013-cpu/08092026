@@ -56,7 +56,7 @@
             return "-";
         }
 
-        var local = value.Value.ToLocalTime().AddYears(543);
+        var local = value.Value.AddYears(543);
         return local.ToString("dd/MM/yy");
     }
 }
@@ -596,7 +596,7 @@ else
                             <td class="last-update">
                                 <div class="fw-semibold">@(string.IsNullOrWhiteSpace(item.LastAction) ? "-" : item.LastAction)</div>
                                 <div class="small text-secondary">@(!string.IsNullOrWhiteSpace(item.LastChangedByName) ? item.LastChangedByName : "-")</div>
-                                <div class="small text-secondary">@(item.LastChangedAt.HasValue ? item.LastChangedAt.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm") : "-")</div>
+                                <div class="small text-secondary">@(item.LastChangedAt.HasValue ? item.LastChangedAt.Value.ToString("yyyy-MM-dd HH:mm") : "-")</div>
                             </td>
                             <td class="text-end no-print action-buttons">
                                 <div class="d-inline-flex gap-1">

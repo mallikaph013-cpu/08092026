@@ -244,7 +244,7 @@
                 <h2 class="h6 mb-3 fw-bold">Audit Trail</h2>
                 <div class="mb-3">
                     <div class="details-key mb-1">@Html.DisplayNameFor(model => model.CreatedAt)</div>
-                    <div class="fw-semibold">@Model.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</div>
+                    <div class="fw-semibold">@Model.CreatedAt.ToString("yyyy-MM-dd HH:mm")</div>
                 </div>
                 <div class="mb-3">
                     <div class="details-key mb-1">@Html.DisplayNameFor(model => model.CreatedByName)</div>
@@ -252,7 +252,7 @@
                 </div>
                 <div class="mb-3">
                     <div class="details-key mb-1">@Html.DisplayNameFor(model => model.UpdatedAt)</div>
-                    <div class="fw-semibold">@(Model.UpdatedAt.HasValue ? Model.UpdatedAt.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm") : "-")</div>
+                    <div class="fw-semibold">@(Model.UpdatedAt.HasValue ? Model.UpdatedAt.Value.ToString("yyyy-MM-dd HH:mm") : "-")</div>
                 </div>
                 <div>
                     <div class="details-key mb-1">@Html.DisplayNameFor(model => model.UpdatedByName)</div>
@@ -284,7 +284,7 @@
                                 </div>
                                 <div class="small text-secondary">
                                     @item.Action by @(string.IsNullOrWhiteSpace(item.ChangedByName) ? "System" : item.ChangedByName)
-                                    on @item.ChangedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")
+                                    on @item.ChangedAt.ToString("yyyy-MM-dd HH:mm")
                                 </div>
                                 @if (!string.IsNullOrWhiteSpace(item.Remark))
                                 {
