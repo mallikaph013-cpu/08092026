@@ -47,6 +47,18 @@
     var currentUserDepartment = ViewData["CurrentUserDepartment"]?.ToString() ?? string.Empty;
     var isDxUser = !string.IsNullOrWhiteSpace(currentUserDepartment)
         && currentUserDepartment.Trim().Equals("DX", StringComparison.OrdinalIgnoreCase);
+
+    // DX Final Approver (DxFinalApproverUserId): เมื่อ DX ผu้อนุมัติขั้นสุดท้ายเข้ามาแก้ไขรายการที่
+    // สถานะ Complete / InProgress / Closed (งานอยู่ในขั้นดำเนิน/เสร็จ/ปิด) ช่อง "ผู้รับผิดชอบ (IT)"
+    // จะเป็น read-only — ผู้รับผิดชอบงาน IT ไม่ควรเปลี่ยนเมื่องานผ่านไปสายแล้ว
+    var isCurrentUserDxFinalApprover = !string.IsNullOrWhiteSpace(currentUserId)
+        && !string.IsNullOrWhiteSpace(Model.DxFinalApproverUserId)
+        && currentUserId == Model.DxFinalApproverUserId;
+    var isItAssigneeReadonlyStatus = Model.Status == ITRepairService.Models.TicketStatus.Complete
+        || Model.Status == ITRepairService.Models.TicketStatus.InProgress
+        || Model.Status == ITRepairService.Models.TicketStatus.Closed;
+    var isItAssigneeReadonly = isCurrentUserAssignedIt
+        || (isCurrentUserDxFinalApprover && isItAssigneeReadonlyStatus);
     var canEditStatusByUser = ViewData["CanEditStatusByUser"] as bool? ?? true;
     var isApprovedOrBeyond = Model.Status == ITRepairService.Models.TicketStatus.Approved
         || Model.Status == ITRepairService.Models.TicketStatus.InProgress
@@ -1321,7 +1333,7 @@
                                 <label asp-for="AssignedItUserId" class="form-label">
                                     <i class="fas fa-laptop-code me-1"></i>ผู้รับผิดชอบ (IT)
                                 </label>
-                                <select asp-for="AssignedItUserId" class="form-select" id="itAssignSelect" disabled="@isCurrentUserAssignedIt">
+                                <select asp-for="AssignedItUserId" class="form-select" id="itAssignSelect" disabled="@isItAssigneeReadonly">
                                     <option value="">— Select IT assignee —</option>
                                     @foreach (var itUser in itSupportUsers)
                                     {
@@ -1343,7 +1355,7 @@
                                         }
                                     }
                                 </select>
-                                @if (isCurrentUserAssignedIt)
+                                @if (isItAssigneeReadonly)
                                 {
                                     <input type="hidden" asp-for="AssignedItUserId" />
                                 }
@@ -1474,7 +1486,7 @@
                                 <label asp-for="AssignedItUserId" class="form-label">
                                     <i class="fas fa-laptop-code me-1"></i>ผู้รับผิดชอบ (IT)
                                 </label>
-                                <select asp-for="AssignedItUserId" class="form-select" id="itAssignSelect" disabled="@isCurrentUserAssignedIt">
+                                <select asp-for="AssignedItUserId" class="form-select" id="itAssignSelect" disabled="@isItAssigneeReadonly">
                                     <option value="">— Select IT assignee —</option>
                                     @foreach (var itUser in itSupportUsers)
                                     {
@@ -1496,7 +1508,7 @@
                                         }
                                     }
                                 </select>
-                                @if (isCurrentUserAssignedIt)
+                                @if (isItAssigneeReadonly)
                                 {
                                     <input type="hidden" asp-for="AssignedItUserId" />
                                 }
@@ -1703,6 +1715,9 @@
 
             // Flag: current user is the assigned IT person (fields should be read-only)
             const isCurrentUserAssignedItJs = @(isCurrentUserAssignedIt ? "true" : "false");
+
+            // Flag: DX final approver editing Complete/InProgress/Closed — IT assignee field is read-only
+            const isItAssigneeReadonlyJs = @(isItAssigneeReadonly ? "true" : "false");
 
             // Drive Access first approver (Step 1, ApproverUserId ยังว่าง, NextApproverUserId ==
             // CurrentUserId): the controller already defaulted the "ฝ่ายที่อนุมัติลำดับถัดไป"
@@ -2167,8 +2182,9 @@
                     const shouldShow = isItOrAdmin || isInProgress || (isDxApprover && isApproved) || isClosed;
 
                     itAssignContainer.style.display = shouldShow ? 'block' : 'none';
-                    // Keep disabled when current user is the assigned IT person (read-only) or status is Closed
-                    itAssignSelect.disabled = !shouldShow || isCurrentUserAssignedItJs || isClosed;
+                    // Keep disabled when the field should be read-only (assigned IT themselves,
+                    // DX final approver on Complete/InProgress/Closed, or status is Closed)
+                    itAssignSelect.disabled = !shouldShow || isItAssigneeReadonlyJs || isClosed;
                     itAssignSelect.required = isInProgress && !isCurrentUserAssignedItJs;
                 }
             }
