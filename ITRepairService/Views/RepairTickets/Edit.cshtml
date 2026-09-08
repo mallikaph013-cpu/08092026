@@ -872,7 +872,8 @@
 
                     @if (originalTicketStatus == ITRepairService.Models.TicketStatus.Closed
                         || isCurrentUserAssignedIt
-                        || originalTicketStatus == ITRepairService.Models.TicketStatus.Approved)
+                        || originalTicketStatus == ITRepairService.Models.TicketStatus.Approved
+                        || (isCurrentUserDxFinalApprover && isItAssigneeReadonlyStatus))
                     {
                         <div class="mb-3">
                             <label class="form-label">
